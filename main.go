@@ -3,6 +3,7 @@ package main
 import (
 	// "fmt"
 	"machine"
+	"math"
 	"time"
 
 	"tinygo.org/x/drivers/lsm6ds3tr"
@@ -16,13 +17,25 @@ const (
 	MAX_PULSE_WIDTH_US  = 2000 // 2ms pulse for full positive deflection
 	MIN_RX_VALUE        = 988  // Minimum iBus channel value
 	MAX_RX_VALUE        = 2012 // Maximum iBus channel value
+	HIGH_RX_VALUE       = 1800 // High iBus channel value for arming/calibration
 	NEUTRAL_RX_VALUE    = 1500 // Neutral iBus channel value
 	DEADBAND            = 20   // Deadband around neutral
-	PWM_CH1_PIN         = machine.D0
-	PWM_CH2_PIN         = machine.D1
-	PWM_CH3_PIN         = machine.D2
-	MAX_ROLL_RATE       = 600 // degrees/sec
+
+	// Maximum rotational rates
+	MAX_ROLL_RATE_DEG  = 600 // degrees/sec
+	MAX_PITCH_RATE_DEG = 200 // degrees/sec
+
+	// Calculated constants
+	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * (math.pi / 180)  // radians/sec
+	MAX_PITCH_RATE = MAX_PITCH_RATE_DEG * (math.pi / 180) // radians/sec
+
 	FAILSAFE_TIMEOUT_MS = 500
+	PID_WEIGHT          = 0.5 // Weighting factor for combining gyro and accel data with input
+
+	// PWM output pins
+	PWM_CH1_PIN = machine.D0
+	PWM_CH2_PIN = machine.D1
+	PWM_CH3_PIN = machine.D2
 
 	// State machine states
 	INITIALIZATION flightState = iota
@@ -51,6 +64,7 @@ var (
 )
 
 type flightState int
+type lastFlightState int
 
 // Main program loop
 func main() {
@@ -126,6 +140,10 @@ func main() {
 
 			// Initial neutral PWM output
 			setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+			setESC(MIN_PULSE_WIDTH_US) // Set ESC to zero throttle
+
+			// Small delay to allow ESC to initialize
+			time.Sleep(2 * time.Second)
 
 			// Configuring Watchdog Timer
 			watchdog.Configure(machine.WatchdogConfig{
@@ -138,15 +156,24 @@ func main() {
 		case WAITING:
 			// Output neutral PWM signals
 			setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+			setESC(MIN_PULSE_WIDTH_US) // Keep ESC at zero
 
-			// Check if pilot is arming the system
-			if ch6 >= 1800 {
+			// Check if pilot is calibrating the system
+			if ch6 >= HIGH_RX_VALUE {
 				calibStartTime = time.Now()
+				lastFlightState = flightState
 				flightState = CALIBRATING
 			}
 
-			// Check if the system is disarmed
-			if ch5 > 1800 {
+			if lastFlightState == FAILSAFE {
+				for ch5 > HIGH_RX_VALUE {
+					continue // Wait for disarm
+				}
+			}
+
+			// Check if the system is armed
+			if ch5 > HIGH_RX_VALUE {
+				lastFlightState = flightState
 				flightState = FLIGHT_MODE
 			}
 
@@ -181,12 +208,15 @@ func main() {
 			// After calibration, set a neutral output
 			setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 
+			// Update last state
+			lastFlightState = flightState
 			// Transition to WAITING once calibration is done
 			flightState = WAITING
 
 		case FLIGHT_MODE:
 			// Check if the system is disarmed
-			if ch5 <= 1800 {
+			if ch5 <= HIGH_RX_VALUE {
+				lastFlightState = flightState
 				flightState = WAITING
 				break
 			}
@@ -203,10 +233,10 @@ func main() {
 			}
 
 			// Directly map the raw input to a desired rotational rate
-			// This simplifies the logic by removing the -1.0 to 1.0 intermediate step
+			// This simplifies the logic by removing an intermediate step
 			// The pilot's input now directly commands the desired rate of rotation
 			desiredRollRate := mapRange(rawAileron, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
-			desiredPitchRate := mapRange(rawElevator, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
+			desiredPitchRate := mapRange(rawElevator, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
 
 			// Read IMU data
 			xA, yA, zA, _ := lsm.ReadAcceleration()
@@ -227,8 +257,11 @@ func main() {
 
 			// --- Mixing Logic ---
 			// The final output is the sum of the pilot's desired input and the PID correction
-			finalPitch := (imu.pitchAccel() * 0.5) + pitchCorrection // The 0.5 is a scaling factor, it might not need to be hard coded
-			finalRoll := (imu.rollAccel() * 0.5) + rollCorrection
+			finalPitch := (imu.pitchAccel() * PID_WEIGHT) + pitchCorrection
+			finalRoll := (imu.rollAccel() * PID_WEIGHT) + rollCorrection
+
+			finalPitch = mapRange(finalPitch, -MAX_PITCH_RATE, MAX_PITCH_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			finalRoll = mapRange(finalRoll, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
 
 			// Combine the final pitch and roll values for elevon mixing
 			leftElevonOutput := finalPitch + finalRoll
@@ -241,14 +274,21 @@ func main() {
 			// Set the servo PWM
 			setServoPWM(uint32(leftPulseWidth), uint32(rightPulseWidth))
 
+			// Set the ESC PWM based on throttle input (ch3)
+			throttlePulse := mapRange(float64(ch3), MIN_RX_VALUE, MAX_RX_VALUE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			setESC(uint32(throttlePulse))
+
 		case FAILSAFE:
 			// On signal loss, set servos to neutral
 			setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
-			// Wait for the signal to return
+			setESC(MIN_PULSE_WIDTH_US) // Cut throttle
+
+			// Optionally, you could implement a gradual descent or other safety measures here
+			// Remain in FAILSAFE until signal is regained
 			if time.Since(lastPacketTime).Milliseconds() <= FAILSAFE_TIMEOUT_MS {
+				lastFlightState = flightState
 				flightState = WAITING // Re-arm the system
 			}
-
 		default:
 			flightState = WAITING // Fallback to a safe state
 		}
