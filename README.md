@@ -70,8 +70,10 @@ Add additional notes about how to deploy this on a live system
 
 ## Built With
 
+### Software
 • [TinyGo](https://tinygo.org/) - Go compiler for microcontrollers  
 • [Go](https://golang.org/) - Language
+### Hardware
 • [Seeed Studio Xiao nrf52840 Sense](https://wiki.seeedstudio.com/XIAO_BLE/) - Xiao nrf52840 Sense microcontroller with onboard IMU
 
 
