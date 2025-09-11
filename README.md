@@ -22,8 +22,8 @@ A step by step series of examples that tell you how to get a development env run
 
 ```
 git clone https://github.com/BryanSouza91/WingFC.git
-cd WingFC/stabServo
-tinygo build -target <your-board> -o stabServo.hex
+cd WingFC
+tinygo build -target <your-board> -o firmware.hex
 ```
 
 And repeat
@@ -71,8 +71,9 @@ Add additional notes about how to deploy this on a live system
 ## Built With
 
 • [TinyGo](https://tinygo.org/) - Go compiler for microcontrollers  
-• [Go](https://golang.org/) - Language  
-• [PlatformIO](https://platformio.org/) - Optional for flashing
+• [Go](https://golang.org/) - Language
+• [Seeed Studio Xiao nrf52840 Sense](https://wiki.seeedstudio.com/XIAO_BLE/) - Xiao nrf52840 Sense microcontroller with onboard IMU
+
 
 ## Contributing
 
