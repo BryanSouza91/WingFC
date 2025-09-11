@@ -3,7 +3,6 @@ package main
 import (
 	// "fmt"
 	"machine"
-	"math"
 	"time"
 
 	"tinygo.org/x/drivers/lsm6ds3tr"
@@ -11,7 +10,7 @@ import (
 
 // Define constants
 const (
-	SERVO_PWM_FREQUENCY = 50   // Standard servo frequency
+	SERVO_PWM_FREQUENCY = 50   // Standard servo frequency (200Hz for digital servos)
 	ESC_PWM_FREQUENCY   = 500  // Non-Standard ESC frequency
 	MIN_PULSE_WIDTH_US  = 1000 // 1ms pulse for full negative deflection
 	MAX_PULSE_WIDTH_US  = 2000 // 2ms pulse for full positive deflection
@@ -25,9 +24,11 @@ const (
 	MAX_ROLL_RATE_DEG  = 600 // degrees/sec
 	MAX_PITCH_RATE_DEG = 200 // degrees/sec
 
+	PI = 3.141592653589793
+
 	// Calculated constants
-	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * (math.pi / 180)  // radians/sec
-	MAX_PITCH_RATE = MAX_PITCH_RATE_DEG * (math.pi / 180) // radians/sec
+	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * (PI / 180)  // radians/sec
+	MAX_PITCH_RATE = MAX_PITCH_RATE_DEG * (PI / 180) // radians/sec
 
 	FAILSAFE_TIMEOUT_MS = 500
 	PID_WEIGHT          = 0.5 // Weighting factor for combining gyro and accel data with input
@@ -46,17 +47,18 @@ const (
 )
 
 var (
-	watchdog   = machine.Watchdog
-	pwm0       = machine.PWM0
-	pwm1       = machine.PWM1
-	pwmCh1     uint8
-	pwmCh2     uint8
-	pwmCh3     uint8
-	err        error
-	lsm        lsm6ds3tr.Device
-	kf         *KalmanFilter
-	controller *PIDController
-	imu        *IMU
+	watchdog        = machine.Watchdog
+	pwm0            = machine.PWM0
+	pwm1            = machine.PWM1
+	pwmCh1          uint8
+	pwmCh2          uint8
+	pwmCh3          uint8
+	err             error
+	lsm             lsm6ds3tr.Device
+	kf              *KalmanFilter
+	controller      *PIDController
+	imu             *IMU
+	lastFlightState flightState
 
 	calibStartTime time.Time
 	gyroBiasX      float64
@@ -64,7 +66,6 @@ var (
 )
 
 type flightState int
-type lastFlightState int
 
 // Main program loop
 func main() {
