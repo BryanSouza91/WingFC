@@ -152,6 +152,7 @@ func main() {
 			})
 			watchdog.Start() // Start the watchdog timer
 
+			lastFlightState = flightState
 			flightState = WAITING
 
 		case WAITING:
@@ -159,17 +160,21 @@ func main() {
 			setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 			setESC(MIN_PULSE_WIDTH_US) // Keep ESC at zero
 
+			// Check if we just exited failsafe
+			// If so, wait for disarm before allowing re-arming
+			// This prevents immediate re-arming after a failsafe event
+			// which could be dangerous
+			if lastFlightState == FAILSAFE {
+				for ch5 > HIGH_RX_VALUE {
+					continue // Wait for disarm
+				}
+			}
+
 			// Check if pilot is calibrating the system
 			if ch6 >= HIGH_RX_VALUE {
 				calibStartTime = time.Now()
 				lastFlightState = flightState
 				flightState = CALIBRATING
-			}
-
-			if lastFlightState == FAILSAFE {
-				for ch5 > HIGH_RX_VALUE {
-					continue // Wait for disarm
-				}
 			}
 
 			// Check if the system is armed
@@ -181,6 +186,7 @@ func main() {
 		case CALIBRATING:
 			// Check if calibration period is over
 			if time.Since(calibStartTime).Seconds() > 10 {
+				lastFlightState = flightState
 				flightState = WAITING
 				break
 			}
