@@ -1,7 +1,7 @@
 # WingFC
 
 WingFC is an open-source embedded flight controller for fixed-wing aircraft, designed for TinyGo. It provides stabilization, mixing, and safety features for elevon-equipped models, with a focus on reliability and ease of use.
-### Latest Version v0.0.1
+### Latest Version 0.0.1
 
 ## Getting Started
 

@@ -9,6 +9,8 @@ import (
 	"tinygo.org/x/drivers/lsm6ds3tr"
 )
 
+const Version = "0.0.1"
+
 // Define constants
 const (
 	SERVO_PWM_FREQUENCY = 50   // Standard servo frequency (200Hz for digital servos)
@@ -68,6 +70,13 @@ type flightState int
 
 // Main program loop
 func main() {
+	// Print startup message
+	println("WingFC - Version", Version)
+	println("A TinyGo Flight Controller for Flying Wing Aircraft")
+	println("Source: github.com/BryanSouza91/WingFC")
+	println("Author: Bryan Souza (github.com/BryanSouza91)")
+
+	// Initial state
 	flightState := INITIALIZATION
 	for {
 		// Attempt to parse iBus data every loop iteration.
