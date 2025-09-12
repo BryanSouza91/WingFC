@@ -3,6 +3,7 @@ package main
 import (
 	// "fmt"
 	"machine"
+	"math"
 	"time"
 
 	"tinygo.org/x/drivers/lsm6ds3tr"
@@ -24,11 +25,9 @@ const (
 	MAX_ROLL_RATE_DEG  = 600 // degrees/sec
 	MAX_PITCH_RATE_DEG = 200 // degrees/sec
 
-	PI = 3.141592653589793
-
 	// Calculated constants
-	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * (PI / 180)  // radians/sec
-	MAX_PITCH_RATE = MAX_PITCH_RATE_DEG * (PI / 180) // radians/sec
+	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * (math.Pi / 180)  // radians/sec
+	MAX_PITCH_RATE = MAX_PITCH_RATE_DEG * (math.Pi / 180) // radians/sec
 
 	FAILSAFE_TIMEOUT_MS = 500
 	PID_WEIGHT          = 0.5 // Weighting factor for combining gyro and accel data with input
