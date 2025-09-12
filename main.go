@@ -9,19 +9,23 @@ import (
 	"tinygo.org/x/drivers/lsm6ds3tr"
 )
 
-const Version = "0.0.1"
+const Version = "0.0.2"
 
 // Define constants
 const (
-	SERVO_PWM_FREQUENCY = 50   // Standard servo frequency (200Hz for digital servos)
-	ESC_PWM_FREQUENCY   = 500  // Non-Standard ESC frequency
-	MIN_PULSE_WIDTH_US  = 1000 // 1ms pulse for full negative deflection
-	MAX_PULSE_WIDTH_US  = 2000 // 2ms pulse for full positive deflection
-	MIN_RX_VALUE        = 988  // Minimum iBus channel value
-	MAX_RX_VALUE        = 2012 // Maximum iBus channel value
-	HIGH_RX_VALUE       = 1800 // High iBus channel value for arming/calibration
-	NEUTRAL_RX_VALUE    = 1500 // Neutral iBus channel value
-	DEADBAND            = 20   // Deadband around neutral
+	// PWM frequencies
+	// These being higher than control loop frequency is important
+	// to ensure smooth servo and ESC operation
+	SERVO_PWM_FREQUENCY = 200  // Standard servo frequency (200Hz for digital servos)
+	ESC_PWM_FREQUENCY   = 500 // Non-Standard ESC frequency
+
+	MIN_PULSE_WIDTH_US = 1000 // 1ms pulse for full negative deflection
+	MAX_PULSE_WIDTH_US = 2000 // 2ms pulse for full positive deflection
+	MIN_RX_VALUE       = 988  // Minimum iBus channel value
+	MAX_RX_VALUE       = 2012 // Maximum iBus channel value
+	HIGH_RX_VALUE      = 1800 // High iBus channel value for arming/calibration
+	NEUTRAL_RX_VALUE   = 1500 // Neutral iBus channel value
+	DEADBAND           = 20   // Deadband around neutral
 
 	// Maximum rotational rates
 	MAX_ROLL_RATE_DEG  = 600 // degrees/sec
@@ -33,6 +37,7 @@ const (
 
 	FAILSAFE_TIMEOUT_MS = 500
 	PID_WEIGHT          = 0.5 // Weighting factor for combining gyro and accel data with input
+	P, I, D             = 0.5, 0.1, 0.2
 
 	// PWM output pins
 	PWM_CH1_PIN = machine.D0
@@ -60,6 +65,10 @@ var (
 	controller      *PIDController
 	imu             *IMU
 	lastFlightState flightState
+
+	// Channel mapping
+	armCh = ch5
+	calCh = ch6
 
 	calibStartTime time.Time
 	gyroBiasX      float64
@@ -144,7 +153,7 @@ func main() {
 			// --- Filter and Controller Setup ---
 			dt := 0.01 // Time step in seconds
 			kf = NewKalmanFilter(dt)
-			controller = NewPIDController(0.5, 0.1, 0.2)
+			controller = NewPIDController(P, I, D)
 			imu = new(IMU)
 
 			// Initial neutral PWM output
@@ -173,31 +182,37 @@ func main() {
 			// This prevents immediate re-arming after a failsafe event
 			// which could be dangerous
 			if lastFlightState == FAILSAFE {
-				for ch5 > HIGH_RX_VALUE {
+				for armCh > HIGH_RX_VALUE {
 					continue // Wait for disarm
 				}
 			}
 
 			// Check if pilot is calibrating the system
-			if ch6 >= HIGH_RX_VALUE {
+			if calCh >= HIGH_RX_VALUE {
 				calibStartTime = time.Now()
 				lastFlightState = flightState
 				flightState = CALIBRATING
 			}
 
 			// Check if the system is armed
-			if ch5 > HIGH_RX_VALUE {
+			if armCh > HIGH_RX_VALUE {
 				lastFlightState = flightState
 				flightState = FLIGHT_MODE
 			}
 
 		case CALIBRATING:
-			// Check if calibration period is over
-			if time.Since(calibStartTime).Seconds() > 10 {
+			// Check if calibration switch has been turned off
+			if calCh <= HIGH_RX_VALUE {
 				lastFlightState = flightState
 				flightState = WAITING
 				break
 			}
+
+			// After calibration, set a neutral output
+			setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+
+			// Pause to let airframe settle
+			time.Sleep(500 * time.Millisecond)
 
 			println("Calibrating Gyro... Keep the wing still!")
 			// Use an array to store gyro readings for averaging
@@ -220,17 +235,9 @@ func main() {
 			// println(fmt.Sprintf("Gyro Bias X: %.4f", gyroBiasX))
 			// println(fmt.Sprintf("Gyro Bias Y: %.4f", gyroBiasY))
 
-			// After calibration, set a neutral output
-			setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
-
-			// Update last state
-			lastFlightState = flightState
-			// Transition to WAITING once calibration is done
-			flightState = WAITING
-
 		case FLIGHT_MODE:
 			// Check if the system is disarmed
-			if ch5 <= HIGH_RX_VALUE {
+			if armCh <= HIGH_RX_VALUE {
 				lastFlightState = flightState
 				flightState = WAITING
 				break
