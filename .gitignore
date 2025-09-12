@@ -2,3 +2,21 @@
 *.bin
 *.hex
 *.code-workspace
+
+
+# kicad
+*.bak
+*.log
+*.dcm
+*.bck
+*.gbr
+*.cmp
+*.net
+*.rpt
+*.brd
+*.kicad_wks
+*.kicad_prl
+*.lck
+*.pro.bak
+*.sch.bak
+*.pcb.bak

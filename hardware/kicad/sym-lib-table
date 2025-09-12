@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "Xiao nrf52840 Sense")(type "KiCad")(uri "/home/bryansouza/Documents/KiCAD/SeeedStudio_XIAO_nRF52840_v1.1_KiCAD/MCU_SEEED_XIAO_Series.kicad_sym")(options "")(descr ""))
+)
