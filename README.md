@@ -19,25 +19,18 @@ What things you need to install the software and how to install them
 
 ### Installing
 
-A step by step series of examples that tell you how to get a development env running
-
+[Download source code](https://github.com/BryanSouza91/WingFC/releases/tag/v0.0.2)
+Extract source code then navigate to the top directory of the source.
 ```
-git clone https://github.com/BryanSouza91/WingFC.git
-cd WingFC
-tinygo build -target <your-board> -o firmware.hex
+cd firmware/src
 ```
 
-And repeat
+Plug in WingFC board via USB-C 
+
+When the filesystem shows up on your computer, flash firmware to your board
 
 ```
-Flash stabServo.hex to your board using your preferred tool
-Connect hardware as described in the documentation
-```
-
-End with an example of getting some data out of the system or using it for a little demo
-
-```
-Open serial terminal to view debug output and verify sensor readings
+tinygo flash -target=xiao-ble 
 ```
 
 ## Running the tests
@@ -80,7 +73,7 @@ Add additional notes about how to deploy this on a live system
 
 ## Contributing
 
-Please read [CONTRIBUTING.md](https://gist.github.com/PurpleBooth/b24679402957c63ec426) for details on our code of conduct, and the process for submitting pull requests to us.
+Please read [CONTRIBUTING.md](https://github.com/BryanSouza91/WingFC/CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests to us.
 
 ## Versioning
 
@@ -94,7 +87,7 @@ See also the list of [contributors](https://github.com/BryanSouza91/WingFC/contr
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](https://github.com/BryanSouza91/WingFC/blob/main/LICENSE.md) file for details
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/BryanSouza91/WingFC/blob/main/LICENSE) file for details
 
 ## Acknowledgments
 
