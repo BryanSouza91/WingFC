@@ -16,7 +16,7 @@ const (
 	// PWM frequencies
 	// These being higher than control loop frequency is important
 	// to ensure smooth servo and ESC operation
-	SERVO_PWM_FREQUENCY = 200  // Standard servo frequency (200Hz for digital servos)
+	SERVO_PWM_FREQUENCY = 200 // Standard servo frequency (200Hz for digital servos)
 	ESC_PWM_FREQUENCY   = 500 // Non-Standard ESC frequency
 
 	MIN_PULSE_WIDTH_US = 1000 // 1ms pulse for full negative deflection
@@ -181,10 +181,8 @@ func main() {
 			// If so, wait for disarm before allowing re-arming
 			// This prevents immediate re-arming after a failsafe event
 			// which could be dangerous
-			if lastFlightState == FAILSAFE {
-				for armCh > HIGH_RX_VALUE {
-					continue // Wait for disarm
-				}
+			if lastFlightState == FAILSAFE && armCh > HIGH_RX_VALUE {
+				break
 			}
 
 			// Check if pilot is calibrating the system
@@ -192,12 +190,14 @@ func main() {
 				calibStartTime = time.Now()
 				lastFlightState = flightState
 				flightState = CALIBRATING
+				break
 			}
 
 			// Check if the system is armed
 			if armCh > HIGH_RX_VALUE {
 				lastFlightState = flightState
 				flightState = FLIGHT_MODE
+				break
 			}
 
 		case CALIBRATING:
@@ -311,6 +311,7 @@ func main() {
 				lastFlightState = flightState
 				flightState = WAITING // Re-arm the system
 			}
+
 		default:
 			flightState = WAITING // Fallback to a safe state
 		}
