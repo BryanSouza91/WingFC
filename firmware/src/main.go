@@ -208,7 +208,7 @@ func main() {
 				break
 			}
 
-			// After calibration, set a neutral output
+			// During calibration, set a neutral output
 			setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 
 			// Pause to let airframe settle
