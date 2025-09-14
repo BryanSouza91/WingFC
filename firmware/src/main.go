@@ -44,6 +44,9 @@ const (
 	PWM_CH2_PIN = machine.D1
 	PWM_CH3_PIN = machine.D2
 
+	// Select protocol manually for now
+	activeProtocol = PROTOCOL_IBUS
+
 	// State machine states
 	INITIALIZATION flightState = iota
 	WAITING
@@ -67,12 +70,15 @@ var (
 	lastFlightState flightState
 
 	// Channel mapping
-	armCh = ch5
-	calCh = ch6
+	armCh = Channels[4] // channel 5
+	calCh = Channels[5] // channel 6
 
 	calibStartTime time.Time
 	gyroBiasX      float64
 	gyroBiasY      float64
+
+	// Select protocol manually for now
+	activeProtocol = PROTOCOL_IBUS
 )
 
 type flightState int
@@ -88,8 +94,8 @@ func main() {
 	// Initial state
 	flightState := INITIALIZATION
 	for {
-		// Attempt to parse iBus data every loop iteration.
-		ParseIBus()
+		// Unified receiver handler for multi-protocol support
+		HandleReceiverInput()
 
 		// Check for failsafe condition before the main state machine
 		if time.Since(lastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState == FLIGHT_MODE {
@@ -103,7 +109,7 @@ func main() {
 			uart.Configure(machine.UARTConfig{
 				BaudRate: 115200,
 				TX:       machine.NoPin,
-				RX:       machine.UART_RX_PIN, // iBus in
+				RX:       machine.UART_RX_PIN, // iBus/CRSF/ELRS in
 			})
 
 			servoPWMConfig := machine.PWMConfig{Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY}
