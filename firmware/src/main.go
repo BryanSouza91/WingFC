@@ -29,13 +29,12 @@ const (
 	MIN_PULSE_WIDTH_US = 1000 // 1ms pulse for full negative deflection
 	MAX_PULSE_WIDTH_US = 2000 // 2ms pulse for full positive deflection
 
-	MIN_RX_VALUE       = 988  // Minimum Rx channel value
-	MAX_RX_VALUE       = 2012 // Maximum Rx channel value
+	MIN_RX_VALUE = 988  // Minimum Rx channel value
+	MAX_RX_VALUE = 2012 // Maximum Rx channel value
 
-	HIGH_RX_VALUE      = 1800 // High Rx channel value for arming/calibration
-	NEUTRAL_RX_VALUE   = 1500 // Neutral Rx channel value
-	DEADBAND           = 20   // Deadband around neutral
-
+	HIGH_RX_VALUE    = 1800 // High Rx channel value for arming/calibration
+	NEUTRAL_RX_VALUE = 1500 // Neutral Rx channel value
+	DEADBAND         = 20   // Deadband around neutral
 
 	// Calculated constants
 	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * (math.Pi / 180)  // radians/sec
@@ -49,7 +48,6 @@ const (
 	PWM_CH1_PIN = machine.D0
 	PWM_CH2_PIN = machine.D1
 	PWM_CH3_PIN = machine.D2
-
 
 	// State machine states
 	INITIALIZATION flightState = iota
@@ -74,8 +72,11 @@ var (
 	lastFlightState flightState
 
 	// Channel mapping
-	armCh = Channels[4] // channel 5
-	calCh = Channels[5] // channel 6
+	aileronCh  = Channels[0] // Rx channel 1
+	elevatorCh = Channels[1] // Rx channel 2
+	throttleCh = Channels[2] // Rx channel 3
+	armCh      = Channels[4] // Rx channel 5
+	calCh      = Channels[5] // Rx channel 6
 
 	calibStartTime time.Time
 	gyroBiasX      float64
@@ -250,8 +251,8 @@ func main() {
 				break
 			}
 			// Read the raw Rx values for aileron and elevator
-			rawAileron := float64(ch1)
-			rawElevator := float64(ch2)
+			rawAileron := float64(aileronCh)
+			rawElevator := float64(elevatorCh)
 
 			// Apply deadband around neutral
 			if (rawAileron > NEUTRAL_RX_VALUE-DEADBAND) && (rawAileron < NEUTRAL_RX_VALUE+DEADBAND) {
@@ -304,7 +305,7 @@ func main() {
 			setServoPWM(uint32(leftPulseWidth), uint32(rightPulseWidth))
 
 			// Set the ESC PWM based on throttle input (ch3)
-			throttlePulse := mapRange(float64(ch3), MIN_RX_VALUE, MAX_RX_VALUE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			throttlePulse := mapRange(float64(throttleCh), MIN_RX_VALUE, MAX_RX_VALUE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
 			setESC(uint32(throttlePulse))
 
 		case FAILSAFE:

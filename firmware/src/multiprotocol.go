@@ -1,9 +1,7 @@
 package main
-
-import (
-	"machine"
-)
-
+// Multi-protocol receiver handler
+// Supports iBus, CRSF, and ELRS protocols
+// Uses shared channels.Channels array for channel values
 // Supported receiver protocols
 const (
 	PROTOCOL_IBUS = iota
@@ -12,7 +10,7 @@ const (
 )
 
 // CRSF/ELRS parser instance
-var crsfParser = crsf.NewCRSFParser()
+var crsfParser = NewCRSFParser()
 
 // HandleReceiverInput parses receiver data for the selected protocol
 // Updates channels.Channels with latest values

@@ -125,10 +125,10 @@ func ExtractCRSFChannels(frame CRSFFrame) bool {
 		// Payload too short for 16 channels
 		return false
 	}
-	for i := 0; i < channels.NumChannels; i++ {
+	for i := 0; i < NumChannels; i++ {
 		// Each channel is 11 bits, packed into payload
 		ch := uint16(frame.Payload[2*i]) | (uint16(frame.Payload[2*i+1]) << 8)
-		channels.Channels[i] = ch & 0x07FF // Mask to 11 bits
+		Channels[i] = ch & 0x07FF // Mask to 11 bits
 	}
 	return true
 }
