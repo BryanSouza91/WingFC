@@ -13,23 +13,29 @@ const Version = "0.0.2"
 
 // Define constants
 const (
+	// Select protocol manually for now
+	activeProtocol = PROTOCOL_IBUS
+
 	// PWM frequencies
 	// These being higher than control loop frequency is important
 	// to ensure smooth servo and ESC operation
 	SERVO_PWM_FREQUENCY = 200 // Standard servo frequency (200Hz for digital servos)
 	ESC_PWM_FREQUENCY   = 500 // Non-Standard ESC frequency
 
-	MIN_PULSE_WIDTH_US = 1000 // 1ms pulse for full negative deflection
-	MAX_PULSE_WIDTH_US = 2000 // 2ms pulse for full positive deflection
-	MIN_RX_VALUE       = 988  // Minimum iBus channel value
-	MAX_RX_VALUE       = 2012 // Maximum iBus channel value
-	HIGH_RX_VALUE      = 1800 // High iBus channel value for arming/calibration
-	NEUTRAL_RX_VALUE   = 1500 // Neutral iBus channel value
-	DEADBAND           = 20   // Deadband around neutral
-
 	// Maximum rotational rates
 	MAX_ROLL_RATE_DEG  = 600 // degrees/sec
 	MAX_PITCH_RATE_DEG = 200 // degrees/sec
+
+	MIN_PULSE_WIDTH_US = 1000 // 1ms pulse for full negative deflection
+	MAX_PULSE_WIDTH_US = 2000 // 2ms pulse for full positive deflection
+
+	MIN_RX_VALUE       = 988  // Minimum Rx channel value
+	MAX_RX_VALUE       = 2012 // Maximum Rx channel value
+
+	HIGH_RX_VALUE      = 1800 // High Rx channel value for arming/calibration
+	NEUTRAL_RX_VALUE   = 1500 // Neutral Rx channel value
+	DEADBAND           = 20   // Deadband around neutral
+
 
 	// Calculated constants
 	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * (math.Pi / 180)  // radians/sec
@@ -44,8 +50,6 @@ const (
 	PWM_CH2_PIN = machine.D1
 	PWM_CH3_PIN = machine.D2
 
-	// Select protocol manually for now
-	activeProtocol = PROTOCOL_IBUS
 
 	// State machine states
 	INITIALIZATION flightState = iota
@@ -76,9 +80,6 @@ var (
 	calibStartTime time.Time
 	gyroBiasX      float64
 	gyroBiasY      float64
-
-	// Select protocol manually for now
-	activeProtocol = PROTOCOL_IBUS
 )
 
 type flightState int
@@ -248,7 +249,7 @@ func main() {
 				flightState = WAITING
 				break
 			}
-			// Read the raw iBus values for aileron and elevator
+			// Read the raw Rx values for aileron and elevator
 			rawAileron := float64(ch1)
 			rawElevator := float64(ch2)
 
