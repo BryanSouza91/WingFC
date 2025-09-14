@@ -187,10 +187,8 @@ func main() {
 			// If so, wait for disarm before allowing re-arming
 			// This prevents immediate re-arming after a failsafe event
 			// which could be dangerous
-			if lastFlightState == FAILSAFE {
-				for armCh > HIGH_RX_VALUE {
-					continue // Wait for disarm
-				}
+			if lastFlightState == FAILSAFE && armCh > HIGH_RX_VALUE {
+				break
 			}
 
 			// Check if pilot is calibrating the system
@@ -198,12 +196,14 @@ func main() {
 				calibStartTime = time.Now()
 				lastFlightState = flightState
 				flightState = CALIBRATING
+				break
 			}
 
 			// Check if the system is armed
 			if armCh > HIGH_RX_VALUE {
 				lastFlightState = flightState
 				flightState = FLIGHT_MODE
+				break
 			}
 
 		case CALIBRATING:
@@ -214,7 +214,7 @@ func main() {
 				break
 			}
 
-			// After calibration, set a neutral output
+			// During calibration, set a neutral output
 			setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 
 			// Pause to let airframe settle
@@ -317,6 +317,7 @@ func main() {
 				lastFlightState = flightState
 				flightState = WAITING // Re-arm the system
 			}
+
 		default:
 			flightState = WAITING // Fallback to a safe state
 		}
