@@ -13,41 +13,18 @@ const Version = "0.0.2"
 
 // Define constants
 const (
-	// Select protocol manually for now
-	activeProtocol = PROTOCOL_IBUS
-
-	// PWM frequencies
-	// These being higher than control loop frequency is important
-	// to ensure smooth servo and ESC operation
-	SERVO_PWM_FREQUENCY = 200 // Standard servo frequency (200Hz for digital servos)
-	ESC_PWM_FREQUENCY   = 500 // Non-Standard ESC frequency
-
-	// Maximum rotational rates
-	MAX_ROLL_RATE_DEG  = 600 // degrees/sec
-	MAX_PITCH_RATE_DEG = 200 // degrees/sec
-
 	MIN_PULSE_WIDTH_US = 1000 // 1ms pulse for full negative deflection
 	MAX_PULSE_WIDTH_US = 2000 // 2ms pulse for full positive deflection
 
-	MIN_RX_VALUE = 988  // Minimum Rx channel value
-	MAX_RX_VALUE = 2012 // Maximum Rx channel value
-
-	HIGH_RX_VALUE    = 1800 // High Rx channel value for arming/calibration
+	MIN_RX_VALUE     = 988  // Minimum Rx channel value
+	MAX_RX_VALUE     = 2012 // Maximum Rx channel value
 	NEUTRAL_RX_VALUE = 1500 // Neutral Rx channel value
-	DEADBAND         = 20   // Deadband around neutral
 
 	// Calculated constants
 	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * (math.Pi / 180)  // radians/sec
 	MAX_PITCH_RATE = MAX_PITCH_RATE_DEG * (math.Pi / 180) // radians/sec
 
 	FAILSAFE_TIMEOUT_MS = 500
-	PID_WEIGHT          = 0.5 // Weighting factor for combining gyro and accel data with input
-	P, I, D             = 0.5, 0.1, 0.2
-
-	// PWM output pins
-	PWM_CH1_PIN = machine.D0
-	PWM_CH2_PIN = machine.D1
-	PWM_CH3_PIN = machine.D2
 
 	// State machine states
 	INITIALIZATION flightState = iota
@@ -59,8 +36,6 @@ const (
 
 var (
 	watchdog        = machine.Watchdog
-	pwm0            = machine.PWM0
-	pwm1            = machine.PWM1
 	pwmCh1          uint8
 	pwmCh2          uint8
 	pwmCh3          uint8
@@ -70,13 +45,6 @@ var (
 	controller      *PIDController
 	imu             *IMU
 	lastFlightState flightState
-
-	// Channel mapping
-	aileronCh  = Channels[0] // Rx channel 1
-	elevatorCh = Channels[1] // Rx channel 2
-	throttleCh = Channels[2] // Rx channel 3
-	armCh      = Channels[4] // Rx channel 5
-	calCh      = Channels[5] // Rx channel 6
 
 	calibStartTime time.Time
 	gyroBiasX      float64
