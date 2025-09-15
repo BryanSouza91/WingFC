@@ -14,7 +14,6 @@ What things you need to install the software and how to install them
 ```
 - Go (TinyGo)
 - Supported microcontroller (see docs)
-- Serial terminal for flashing
 ```
 
 ### Installing
@@ -70,6 +69,20 @@ Add additional notes about how to deploy this on a live system
 ### Hardware
 • [Seeed Studio Xiao nrf52840 Sense](https://wiki.seeedstudio.com/XIAO_BLE/) - Xiao nrf52840 Sense microcontroller with onboard IMU
 
+
+## Supported Receiver Protocols
+
+WingFC supports multiple RC receiver protocols for maximum compatibility:
+
+- **iBus** (FlySky): Supports up to 18 channels (FS-A8S, FS-iA6B)
+- **CRSF** (Crossfire): Supports up to 16 channels
+- **ELRS** (ExpressLRS): Uses CRSF protocol, supports up to 16 channels
+
+You can select the active protocol in the firmware source (`multiprotocol.go`). All protocols update a shared channel array, so your control logic works seamlessly regardless of receiver type.
+
+**Manual protocol selection is recommended for best performance.**
+
+For details, see the [multiprotocol.go](firmware/src/multiprotocol.go) source file.
 
 ## Contributing
 

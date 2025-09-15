@@ -13,39 +13,18 @@ const Version = "0.0.2"
 
 // Define constants
 const (
-	// PWM frequencies
-	// These being higher than control loop frequency is important
-	// to ensure smooth servo and ESC operation
-	SERVO_PWM_FREQUENCY = 200 // Standard servo frequency (200Hz for digital servos)
-	ESC_PWM_FREQUENCY   = 500 // Non-Standard ESC frequency
-
 	MIN_PULSE_WIDTH_US = 1000 // 1ms pulse for full negative deflection
 	MAX_PULSE_WIDTH_US = 2000 // 2ms pulse for full positive deflection
-	MIN_RX_VALUE       = 988  // Minimum iBus channel value
-	MAX_RX_VALUE       = 2012 // Maximum iBus channel value
-	HIGH_RX_VALUE      = 1800 // High iBus channel value for arming/calibration
-	NEUTRAL_RX_VALUE   = 1500 // Neutral iBus channel value
-	DEADBAND           = 20   // Deadband around neutral
 
-	// Maximum rotational rates
-	MAX_ROLL_RATE_DEG  = 600 // degrees/sec
-	MAX_PITCH_RATE_DEG = 200 // degrees/sec
+	MIN_RX_VALUE     = 988  // Minimum Rx channel value
+	MAX_RX_VALUE     = 2012 // Maximum Rx channel value
+	NEUTRAL_RX_VALUE = 1500 // Neutral Rx channel value
 
 	// Calculated constants
 	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * (math.Pi / 180)  // radians/sec
 	MAX_PITCH_RATE = MAX_PITCH_RATE_DEG * (math.Pi / 180) // radians/sec
 
 	FAILSAFE_TIMEOUT_MS = 500
-	PID_WEIGHT          = 0.5 // Weighting factor for combining gyro and accel data with input
-	P, I, D             = 0.5, 0.1, 0.2
-
-	// PWM output pins
-	PWM_CH1_PIN = machine.D0
-	PWM_CH2_PIN = machine.D1
-	PWM_CH3_PIN = machine.D2
-
-	// Select protocol manually for now
-	activeProtocol = PROTOCOL_IBUS
 
 	// State machine states
 	INITIALIZATION flightState = iota
@@ -56,9 +35,10 @@ const (
 )
 
 var (
+	// Channels holds the RC channel values for all protocols (iBus, CRSF, ELRS)
+	Channels [NumChannels]uint16
+
 	watchdog        = machine.Watchdog
-	pwm0            = machine.PWM0
-	pwm1            = machine.PWM1
 	pwmCh1          uint8
 	pwmCh2          uint8
 	pwmCh3          uint8
@@ -69,16 +49,9 @@ var (
 	imu             *IMU
 	lastFlightState flightState
 
-	// Channel mapping
-	armCh = Channels[4] // channel 5
-	calCh = Channels[5] // channel 6
-
 	calibStartTime time.Time
-	gyroBiasX      float64
-	gyroBiasY      float64
-
-	// Select protocol manually for now
-	activeProtocol = PROTOCOL_IBUS
+	gyroBiasX      float64 = 0.
+	gyroBiasY      float64 = 0.
 )
 
 type flightState int
@@ -242,38 +215,58 @@ func main() {
 			// println(fmt.Sprintf("Gyro Bias Y: %.4f", gyroBiasY))
 
 		case FLIGHT_MODE:
+			// --- Read and Process RC Inputs ---
+
 			// Check if the system is disarmed
 			if armCh <= HIGH_RX_VALUE {
 				lastFlightState = flightState
 				flightState = WAITING
 				break
 			}
-			// Read the raw iBus values for aileron and elevator
-			rawAileron := float64(ch1)
-			rawElevator := float64(ch2)
 
-			// Apply deadband around neutral
-			if (rawAileron > NEUTRAL_RX_VALUE-DEADBAND) && (rawAileron < NEUTRAL_RX_VALUE+DEADBAND) {
-				rawAileron = NEUTRAL_RX_VALUE
+			// Convert raw RC channel values to float64 for calculations
+			rawElevator := float64(elevatorCh)
+			rawAileron := float64(aileronCh)
+
+			// --- Apply Deadband Around Neutral ---
+			// This prevents small stick movements or noise from affecting control
+			if rawElevator > float64(NEUTRAL_RX_VALUE-DEADBAND) && rawElevator < float64(NEUTRAL_RX_VALUE+DEADBAND) {
+				rawElevator = float64(NEUTRAL_RX_VALUE)
 			}
-			if (rawElevator > NEUTRAL_RX_VALUE-DEADBAND) && (rawElevator < NEUTRAL_RX_VALUE+DEADBAND) {
-				rawElevator = NEUTRAL_RX_VALUE
+			if rawAileron > float64(NEUTRAL_RX_VALUE-DEADBAND) && rawAileron < float64(NEUTRAL_RX_VALUE+DEADBAND) {
+				rawAileron = float64(NEUTRAL_RX_VALUE)
 			}
 
-			// Directly map the raw input to a desired rotational rate
-			// This simplifies the logic by removing an intermediate step
-			// The pilot's input now directly commands the desired rate of rotation
-			desiredRollRate := mapRange(rawAileron, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
-			desiredPitchRate := mapRange(rawElevator, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
+			// --- Map RC Inputs to Desired Rotational Rates ---
+			// The pilot's stick input directly commands the desired rate of rotation
+			desiredPitchRate := mapRange(
+				rawElevator,
+				float64(MIN_RX_VALUE),
+				float64(MAX_RX_VALUE),
+				-float64(MAX_PITCH_RATE),
+				float64(MAX_PITCH_RATE),
+			)
+			desiredRollRate := mapRange(
+				rawAileron,
+				float64(MIN_RX_VALUE),
+				float64(MAX_RX_VALUE),
+				-float64(MAX_ROLL_RATE),
+				float64(MAX_ROLL_RATE),
+			)
 
-			// Read IMU data
-			xA, yA, zA, _ := lsm.ReadAcceleration()
-			imu.AccelX, imu.AccelY, imu.AccelZ = float64(xA), float64(yA), float64(zA)
-			xG, yG, _, _ := lsm.ReadRotation()
+			// --- Read IMU Data ---
+			// Get acceleration and rotation from the IMU sensor
+			xAccel, yAccel, zAccel, _ := lsm.ReadAcceleration()
+			imu.AccelX = float64(xAccel)
+			imu.AccelY = float64(yAccel)
+			imu.AccelZ = float64(zAccel)
 
-			// Subtract the calibrated gyro bias
-			imu.GyroX = float64(xG) - gyroBiasX
-			imu.GyroY = float64(yG) - gyroBiasY
+			xGyro, yGyro, _, _ := lsm.ReadRotation()
+
+			// --- Subtract Calibrated Gyro Bias ---
+			// This removes any offset from the gyro readings
+			imu.GyroX = float64(xGyro) - gyroBiasX
+			imu.GyroY = float64(yGyro) - gyroBiasY
 
 			// --- PID Control ---
 			// The 'error' is now the difference between the desired rate and the current rate
@@ -288,22 +281,60 @@ func main() {
 			finalPitch := (imu.pitchAccel() * PID_WEIGHT) + pitchCorrection
 			finalRoll := (imu.rollAccel() * PID_WEIGHT) + rollCorrection
 
-			finalPitch = mapRange(finalPitch, -MAX_PITCH_RATE, MAX_PITCH_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
-			finalRoll = mapRange(finalRoll, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			// --- Convert normalized outputs to PWM microseconds ---
+			finalPitch = mapRange(
+				float64(finalPitch),
+				-float64(MAX_PITCH_RATE),
+				float64(MAX_PITCH_RATE),
+				float64(MIN_PULSE_WIDTH_US),
+				float64(MAX_PULSE_WIDTH_US),
+			)
+			finalRoll = mapRange(
+				float64(finalRoll),
+				-float64(MAX_ROLL_RATE),
+				float64(MAX_ROLL_RATE),
+				float64(MIN_PULSE_WIDTH_US),
+				float64(MAX_PULSE_WIDTH_US),
+			)
 
+			// --- Elevon Mixing ---
 			// Combine the final pitch and roll values for elevon mixing
-			leftElevonOutput := finalPitch + finalRoll
-			rightElevonOutput := finalPitch - finalRoll
+			leftElevonOutput := float64(finalPitch) + float64(finalRoll)
+			rightElevonOutput := float64(finalPitch) - float64(finalRoll)
 
-			// Convert normalized outputs to PWM microseconds
-			leftPulseWidth := mapRange(leftElevonOutput, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
-			rightPulseWidth := mapRange(rightElevonOutput, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			// Define the possible output range for mixing
+			const (
+				elevonMixMin = -2 * MIN_PULSE_WIDTH_US // -2000
+				elevonMixMax = 2 * MAX_PULSE_WIDTH_US  // 4000
+			)
 
-			// Set the servo PWM
+			// --- Remap mixed outputs to valid PWM pulse width range ---
+			leftPulseWidth := mapRange(
+				leftElevonOutput,
+				float64(elevonMixMin),
+				float64(elevonMixMax),
+				float64(MIN_PULSE_WIDTH_US),
+				float64(MAX_PULSE_WIDTH_US),
+			)
+			rightPulseWidth := mapRange(
+				rightElevonOutput,
+				float64(elevonMixMin),
+				float64(elevonMixMax),
+				float64(MIN_PULSE_WIDTH_US),
+				float64(MAX_PULSE_WIDTH_US),
+			)
+
+			// --- Set the servo PWM ---
 			setServoPWM(uint32(leftPulseWidth), uint32(rightPulseWidth))
 
-			// Set the ESC PWM based on throttle input (ch3)
-			throttlePulse := mapRange(float64(ch3), MIN_RX_VALUE, MAX_RX_VALUE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			// --- Set the ESC PWM based on throttle input (ch3) ---
+			throttlePulse := mapRange(
+				float64(throttleCh),
+				float64(MIN_RX_VALUE),
+				float64(MAX_RX_VALUE),
+				float64(MIN_PULSE_WIDTH_US),
+				float64(MAX_PULSE_WIDTH_US),
+			)
 			setESC(uint32(throttlePulse))
 
 		case FAILSAFE:
