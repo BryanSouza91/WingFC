@@ -50,8 +50,8 @@ var (
 	lastFlightState flightState
 
 	calibStartTime time.Time
-	gyroBiasX      float64
-	gyroBiasY      float64
+	gyroBiasX      float64 = 0.
+	gyroBiasY      float64 = 0.
 )
 
 type flightState int
