@@ -35,6 +35,9 @@ const (
 )
 
 var (
+	// Channels holds the RC channel values for all protocols (iBus, CRSF, ELRS)
+	Channels [NumChannels]uint16
+
 	watchdog        = machine.Watchdog
 	pwmCh1          uint8
 	pwmCh2          uint8
