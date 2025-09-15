@@ -225,33 +225,33 @@ func main() {
 			}
 
 			// Convert raw RC channel values to float64 for calculations
-			rawAileron := float64(aileronCh)
 			rawElevator := float64(elevatorCh)
+			rawAileron := float64(aileronCh)
 
 			// --- Apply Deadband Around Neutral ---
 			// This prevents small stick movements or noise from affecting control
-			if rawAileron > float64(NEUTRAL_RX_VALUE-DEADBAND) && rawAileron < float64(NEUTRAL_RX_VALUE+DEADBAND) {
-				rawAileron = float64(NEUTRAL_RX_VALUE)
-			}
 			if rawElevator > float64(NEUTRAL_RX_VALUE-DEADBAND) && rawElevator < float64(NEUTRAL_RX_VALUE+DEADBAND) {
 				rawElevator = float64(NEUTRAL_RX_VALUE)
+			}
+			if rawAileron > float64(NEUTRAL_RX_VALUE-DEADBAND) && rawAileron < float64(NEUTRAL_RX_VALUE+DEADBAND) {
+				rawAileron = float64(NEUTRAL_RX_VALUE)
 			}
 
 			// --- Map RC Inputs to Desired Rotational Rates ---
 			// The pilot's stick input directly commands the desired rate of rotation
-			desiredRollRate := mapRange(
-				rawAileron,
-				float64(MIN_RX_VALUE),
-				float64(MAX_RX_VALUE),
-				-float64(MAX_ROLL_RATE),
-				float64(MAX_ROLL_RATE),
-			)
 			desiredPitchRate := mapRange(
 				rawElevator,
 				float64(MIN_RX_VALUE),
 				float64(MAX_RX_VALUE),
 				-float64(MAX_PITCH_RATE),
 				float64(MAX_PITCH_RATE),
+			)
+			desiredRollRate := mapRange(
+				rawAileron,
+				float64(MIN_RX_VALUE),
+				float64(MAX_RX_VALUE),
+				-float64(MAX_ROLL_RATE),
+				float64(MAX_ROLL_RATE),
 			)
 
 			// --- Read IMU Data ---
