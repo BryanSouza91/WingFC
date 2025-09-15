@@ -3,6 +3,8 @@ package main
 // WingFC Configuration
 // All user-configurable parameters and hardware mappings
 
+import "machine"
+
 // --- Protocol Selection ---
 const (
 	NumChannels    = 18            // Number of supported RC channels
