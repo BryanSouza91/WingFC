@@ -9,7 +9,7 @@ import (
 	"tinygo.org/x/drivers/lsm6ds3tr"
 )
 
-const Version = "0.0.2"
+const Version = "0.1.0"
 
 // Define constants
 const (
