@@ -2,7 +2,7 @@ package main
 
 // Multi-protocol receiver handler
 // Supports iBus, CRSF, and ELRS protocols
-// Uses shared channels.Channels array for channel values
+// Uses shared Channels array for channel values
 // Supported receiver protocols
 const (
 	PROTOCOL_IBUS = iota

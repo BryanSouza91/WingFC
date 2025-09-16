@@ -1568,7 +1568,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "290783e2-ec70-4891-b767-cd2e9c6faad0")
-		(property "Reference" "M1"
+		(property "Reference" "S1"
 			(at 237.49 94.8168 0)
 			(effects
 				(font
@@ -1625,7 +1625,7 @@
 		(instances
 			(project ""
 				(path "/445d9cd1-5394-4088-b8b3-4bdd1a5f12c3"
-					(reference "M1")
+					(reference "S1")
 					(unit 1)
 				)
 			)
@@ -1707,7 +1707,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "45748448-596f-4006-9cb8-cfdb4346c874")
-		(property "Reference" "RX1"
+		(property "Reference" "RX"
 			(at 228.6 118.1099 0)
 			(effects
 				(font
@@ -1764,7 +1764,7 @@
 		(instances
 			(project ""
 				(path "/445d9cd1-5394-4088-b8b3-4bdd1a5f12c3"
-					(reference "RX1")
+					(reference "RX")
 					(unit 1)
 				)
 			)
@@ -1825,7 +1825,7 @@
 			)
 		)
 		(pin "1"
-			(uuid "c59d7c9b-527f-4b3e-aa73-c8762ac6978c")
+			(uuid "c59d7c9b-527f-4b3e-aa73-c8762ac6978d")
 		)
 		(instances
 			(project ""
@@ -2110,7 +2110,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "96d5f7f1-ad04-493f-808b-be3a0571fb3b")
-		(property "Reference" "ESC1"
+		(property "Reference" "ESC"
 			(at 227.33 81.2799 0)
 			(effects
 				(font
@@ -2167,7 +2167,7 @@
 		(instances
 			(project ""
 				(path "/445d9cd1-5394-4088-b8b3-4bdd1a5f12c3"
-					(reference "ESC1")
+					(reference "ESC")
 					(unit 1)
 				)
 			)
@@ -2228,7 +2228,7 @@
 			)
 		)
 		(pin "1"
-			(uuid "c59d7c9b-527f-4b3e-aa73-c8762ac6978c")
+			(uuid "c59d7c9b-527f-4b3e-aa73-c8762ac6978e")
 		)
 		(instances
 			(project ""
@@ -2381,7 +2381,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "d3e14a22-4a7c-4169-8abd-166bd710e1d6")
-		(property "Reference" "M2"
+		(property "Reference" "S2"
 			(at 237.49 103.7068 0)
 			(effects
 				(font
@@ -2438,7 +2438,7 @@
 		(instances
 			(project ""
 				(path "/445d9cd1-5394-4088-b8b3-4bdd1a5f12c3"
-					(reference "M2")
+					(reference "S2")
 					(unit 1)
 				)
 			)
@@ -2499,7 +2499,7 @@
 			)
 		)
 		(pin "1"
-			(uuid "c59d7c9b-527f-4b3e-aa73-c8762ac6978c")
+			(uuid "c59d7c9b-527f-4b3e-aa73-c8762ac6978f")
 		)
 		(instances
 			(project ""
