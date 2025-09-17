@@ -1,11 +1,12 @@
 package main
 
 import (
-	// "fmt"
+	"fmt"
 	"machine"
 	"math"
 	"time"
 
+	"golang.org/x/exp/constraints"
 	"tinygo.org/x/drivers/lsm6ds3tr"
 )
 
@@ -13,6 +14,12 @@ const Version = "0.1.0"
 
 // Define constants
 const (
+	// Convert sensor values to radians for calculations
+	// The LSM6DS3TR driver returns values in micro-g for accel and micro-dps for gyro.
+	// Convert to m/s^2 and rad/s respectively.
+	microGToMS2    = 9.80665 / 1e6
+	microDPSToRadS = math.Pi / (180 * 1e6)
+
 	MIN_PULSE_WIDTH_US = 1000 // 1ms pulse for full negative deflection
 	MAX_PULSE_WIDTH_US = 2000 // 2ms pulse for full positive deflection
 
@@ -21,8 +28,8 @@ const (
 	NEUTRAL_RX_VALUE = 1500 // Neutral Rx channel value
 
 	// Calculated constants
-	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * (math.Pi / 180)  // radians/sec
-	MAX_PITCH_RATE = MAX_PITCH_RATE_DEG * (math.Pi / 180) // radians/sec
+	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * microDPSToRadS  // radians/sec
+	MAX_PITCH_RATE = MAX_PITCH_RATE_DEG * microDPSToRadS // radians/sec
 
 	FAILSAFE_TIMEOUT_MS = 500
 
@@ -38,12 +45,14 @@ var (
 	// Channels holds the RC channel values for all protocols (iBus, CRSF, ELRS)
 	Channels [NumChannels]uint16
 
-	watchdog        = machine.Watchdog
-	pwmCh1          uint8
-	pwmCh2          uint8
-	pwmCh3          uint8
-	err             error
-	lsm             lsm6ds3tr.Device
+	watchdog = machine.Watchdog
+
+	pwmCh1 uint8
+	pwmCh2 uint8
+	pwmCh3 uint8
+	err    error
+
+	lsm             *lsm6ds3tr.Device
 	kf              *KalmanFilter
 	controller      *PIDController
 	imu             *IMU
@@ -58,17 +67,40 @@ type flightState int
 
 // Main program loop
 func main() {
+	time.Sleep(2 * time.Second)
 	// Print startup message
 	println("WingFC - Version", Version)
 	println("A TinyGo Flight Controller for Flying Wing Aircraft")
 	println("Source: github.com/BryanSouza91/WingFC")
 	println("Author: Bryan Souza (github.com/BryanSouza91)")
 
+	// Control loop frequency
+	// necessary to ensure stable operation
+	// match to dt
+
+	// Set up a ticker for consistent loop timing
+	interval := 10 * time.Millisecond
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
 	// Initial state
 	flightState := INITIALIZATION
+	println("Entering INITIALIZATION state...")
 	for {
+		// Maintain a consistent loop timing
+		<-ticker.C
+
 		// Unified receiver handler for multi-protocol support
 		HandleReceiverInput()
+
+		// --- Channel Mapping ---
+		var (
+			aileronCh  = Channels[0] // Rx channel 1
+			elevatorCh = Channels[1] // Rx channel 2
+			throttleCh = Channels[2] // Rx channel 3
+			armCh      = Channels[4] // Rx channel 5
+			calCh      = Channels[5] // Rx channel 6
+		)
 
 		// Check for failsafe condition before the main state machine
 		if time.Since(lastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState == FLIGHT_MODE {
@@ -84,6 +116,7 @@ func main() {
 				TX:       machine.NoPin,
 				RX:       machine.UART_RX_PIN, // iBus/CRSF/ELRS in
 			})
+			println("UART configured for receiver input.")
 
 			servoPWMConfig := machine.PWMConfig{Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY}
 			if err := pwm0.Configure(servoPWMConfig); err != nil {
@@ -110,17 +143,17 @@ func main() {
 				println("could not get PWM channel for pin D7:", err)
 				return
 			}
-
+			println("PWM configured for servos and ESC.")
 			i2c := machine.I2C0
 			i2c.Configure(machine.I2CConfig{
 				Frequency: 400 * machine.KHz,
 			})
-			lsm := lsm6ds3tr.New(i2c)
+			lsm = lsm6ds3tr.New(i2c)
 			err := lsm.Configure(lsm6ds3tr.Configuration{
-				AccelRange:      lsm6ds3tr.ACCEL_16G,
-				AccelSampleRate: lsm6ds3tr.ACCEL_SR_6664,
-				GyroRange:       lsm6ds3tr.GYRO_2000DPS,
-				GyroSampleRate:  lsm6ds3tr.GYRO_SR_6664,
+				AccelRange:      lsm6ds3tr.ACCEL_8G,
+				AccelSampleRate: lsm6ds3tr.ACCEL_SR_104,
+				GyroRange:       lsm6ds3tr.GYRO_1000DPS,
+				GyroSampleRate:  lsm6ds3tr.GYRO_SR_104,
 			})
 			if err != nil {
 				for {
@@ -128,20 +161,29 @@ func main() {
 					time.Sleep(time.Second)
 				}
 			}
+			if !lsm.Connected() {
+				println("LSM6DS3TR not connected")
+				time.Sleep(time.Second)
+				break
+			}
+			println("LSM6DS3TR initialized.")
+			// --- End Hardware Setup ---
 
 			// --- Filter and Controller Setup ---
 			dt := 0.01 // Time step in seconds
 			kf = NewKalmanFilter(dt)
 			controller = NewPIDController(P, I, D)
 			imu = new(IMU)
+			println("Filter and controller initialized.")
+			// --- End Filter and Controller Setup ---
 
 			// Initial neutral PWM output
 			setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 			setESC(MIN_PULSE_WIDTH_US) // Set ESC to zero throttle
-
 			// Small delay to allow ESC to initialize
 			time.Sleep(2 * time.Second)
 
+			println("Initialization complete. Entering WAITING state...")
 			// Configuring Watchdog Timer
 			watchdog.Configure(machine.WatchdogConfig{
 				TimeoutMillis: 500, // 500ms timeout
@@ -152,15 +194,19 @@ func main() {
 			flightState = WAITING
 
 		case WAITING:
+			println("Entering WAITING state...")
 			// Output neutral PWM signals
 			setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 			setESC(MIN_PULSE_WIDTH_US) // Keep ESC at zero
+			println("System is disarmed. Move the arm switch to arm.")
+			println("Arm Channel:", armCh)
+			println("Cal Channel:", calCh)
 
 			// Check if we just exited failsafe
 			// If so, wait for disarm before allowing re-arming
 			// This prevents immediate re-arming after a failsafe event
 			// which could be dangerous
-			if lastFlightState == FAILSAFE && armCh > HIGH_RX_VALUE {
+			if lastFlightState == FAILSAFE && armCh < HIGH_RX_VALUE {
 				break
 			}
 
@@ -189,21 +235,27 @@ func main() {
 
 			// During calibration, set a neutral output
 			setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+			setESC(MIN_PULSE_WIDTH_US)
 
 			// Pause to let airframe settle
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 
-			println("Calibrating Gyro... Keep the wing still!")
+			println("Calibrating Gyro... Keep gyro still!")
 			// Use an array to store gyro readings for averaging
-			var gyroXSum, gyroYSum float64
+			var gyroXSum, gyroYSum, gyroBiasX, gyroBiasY float64 = 0., 0., 0., 0.
+			var xG, yG int32
 			const sampleSize = 1000
 
 			// Perform the calibration loop
 			for i := 0; i < sampleSize; i++ {
-				xG, yG, _, _ := lsm.ReadRotation()
-				gyroXSum += float64(xG)
-				gyroYSum += float64(yG)
-				time.Sleep(time.Millisecond) // Wait to get unique readings
+				xG, yG, _, err = lsm.ReadRotation()
+				if err != nil {
+					println("Error reading gyro during calibration:", err)
+					continue
+				}
+				gyroXSum += float64(xG) * microGToMS2
+				gyroYSum += float64(yG) * microGToMS2
+				// time.Sleep(100 * time.Microsecond) // Wait to get unique readings
 			}
 
 			// Calculate the average bias
@@ -211,8 +263,11 @@ func main() {
 			gyroBiasY = gyroYSum / sampleSize
 
 			println("Calibration complete!")
-			// println(fmt.Sprintf("Gyro Bias X: %.4f", gyroBiasX))
-			// println(fmt.Sprintf("Gyro Bias Y: %.4f", gyroBiasY))
+			println(fmt.Sprintf("Gyro Bias X: %.4f", gyroBiasX))
+			println(fmt.Sprintf("Gyro Bias Y: %.4f", gyroBiasY))
+
+			lastFlightState = flightState
+			flightState = WAITING
 
 		case FLIGHT_MODE:
 			// --- Read and Process RC Inputs ---
@@ -238,16 +293,19 @@ func main() {
 			}
 
 			// --- Map RC Inputs to Desired Rotational Rates ---
+			// Constrain the raw inputs to valid range
+			consRawElevator := constrain(rawElevator, float64(MIN_RX_VALUE), float64(MAX_RX_VALUE))
+			consRawAileron := constrain(rawAileron, float64(MIN_RX_VALUE), float64(MAX_RX_VALUE))
 			// The pilot's stick input directly commands the desired rate of rotation
 			desiredPitchRate := mapRange(
-				rawElevator,
+				consRawElevator,
 				float64(MIN_RX_VALUE),
 				float64(MAX_RX_VALUE),
 				-float64(MAX_PITCH_RATE),
 				float64(MAX_PITCH_RATE),
 			)
 			desiredRollRate := mapRange(
-				rawAileron,
+				consRawAileron,
 				float64(MIN_RX_VALUE),
 				float64(MAX_RX_VALUE),
 				-float64(MAX_ROLL_RATE),
@@ -257,16 +315,16 @@ func main() {
 			// --- Read IMU Data ---
 			// Get acceleration and rotation from the IMU sensor
 			xAccel, yAccel, zAccel, _ := lsm.ReadAcceleration()
-			imu.AccelX = float64(xAccel)
-			imu.AccelY = float64(yAccel)
-			imu.AccelZ = float64(zAccel)
+			imu.AccelX = float64(xAccel) * microGToMS2
+			imu.AccelY = float64(yAccel) * microGToMS2
+			imu.AccelZ = float64(zAccel) * microGToMS2
 
 			xGyro, yGyro, _, _ := lsm.ReadRotation()
 
 			// --- Subtract Calibrated Gyro Bias ---
 			// This removes any offset from the gyro readings
-			imu.GyroX = float64(xGyro) - gyroBiasX
-			imu.GyroY = float64(yGyro) - gyroBiasY
+			imu.GyroX = float64(xGyro) - gyroBiasX*microDPSToRadS
+			imu.GyroY = float64(yGyro) - gyroBiasY*microDPSToRadS
 
 			// --- PID Control ---
 			// The 'error' is now the difference between the desired rate and the current rate
@@ -355,29 +413,35 @@ func main() {
 
 		// Keep the watchdog happy
 		watchdog.Update()
-
-		// Control loop frequency
-		// necessary to ensure stable operation
-		// match to dt
-		time.Sleep(time.Millisecond * 10) // 100Hz loop
 	}
 }
 
+// Helper function to constrain a value within min and max bounds.
+func constrain(value, min, max float64) float64 {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
+}
+
 // Helper function to map a value from one range to another.
-func mapRange(value, fromMin, fromMax, toMin, toMax float64) float64 {
+func mapRange[T constraints.Float](value, fromMin, fromMax, toMin, toMax T) T {
 	return (value-fromMin)/(fromMax-fromMin)*(toMax-toMin) + toMin
 }
 
 // Helper function to set servo PWM outputs
 func setServoPWM(leftPulse, rightPulse uint32) {
 	// Set the PWM duty cycle for left elevon (CH1)
-	pwm0.Set(pwmCh1, pwm0.Top()/uint32(1e6)*leftPulse)
+	pwm0.Set(pwmCh1, leftPulse)
 	// Set the PWM duty cycle for right elevon (CH2)
-	pwm0.Set(pwmCh2, pwm0.Top()/uint32(1e6)*rightPulse)
+	pwm0.Set(pwmCh2, rightPulse)
 }
 
 // Helper function to set the ESC's PWM output
 func setESC(pulseWidth uint32) {
 	// The ESC's channel is typically CH3
-	pwm1.Set(pwmCh3, pwm1.Top()/uint32(1e6)*pulseWidth)
+	pwm1.Set(pwmCh3, pulseWidth)
 }

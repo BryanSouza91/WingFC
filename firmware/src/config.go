@@ -13,7 +13,7 @@ const (
 
 // --- PWM Configuration ---
 const (
-	SERVO_PWM_FREQUENCY = 200  // Standard servo frequency (Hz)
+	SERVO_PWM_FREQUENCY = 50   // Standard servo frequency (Hz)
 	ESC_PWM_FREQUENCY   = 500  // ESC frequency (Hz)
 	DEADBAND            = 20   // Deadband around neutral
 	HIGH_RX_VALUE       = 1800 // High Rx channel value for arming/calibration
@@ -32,15 +32,6 @@ const (
 	PWM_CH1_PIN = machine.D0 // Aileron Servo
 	PWM_CH2_PIN = machine.D1 // Elevator Servo
 	PWM_CH3_PIN = machine.D2 // Throttle (ESC)
-)
-
-// --- Channel Mapping ---
-var (
-	aileronCh  = Channels[0] // Rx channel 1
-	elevatorCh = Channels[1] // Rx channel 2
-	throttleCh = Channels[2] // Rx channel 3
-	armCh      = Channels[4] // Rx channel 5
-	calCh      = Channels[5] // Rx channel 6
 )
 
 // --- Hardware Interfaces ---
