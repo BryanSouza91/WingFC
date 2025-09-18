@@ -1,52 +1,71 @@
 package main
 
-// Multi-protocol receiver handler
-// Supports iBus, CRSF, and ELRS protocols
-// Uses shared channels.Channels array for channel values
-// Supported receiver protocols
+import (
+	"time"
+)
+
+// Supported protocols
 const (
 	PROTOCOL_IBUS = iota
 	PROTOCOL_CRSF
 	PROTOCOL_ELRS
 )
 
-// CRSF/ELRS parser instance
-var crsfParser = NewCRSFParser()
+var (
+	// Global parser instances and state
+	crsfParser     = NewCRSFParser()
+	iBusParser     = NewIBusParser()
+	elrsParser     = NewELRSParser()
+	lastPacketTime time.Time
 
-// HandleReceiverInput parses receiver data for the selected protocol
-// Updates channels.Channels with latest values
-func HandleReceiverInput() bool {
-	switch activeProtocol {
-	case PROTOCOL_IBUS:
-		ParseIBus()
-		// iBus updates Channels directly
-		return true
-	case PROTOCOL_CRSF:
-		// Read bytes from UART and feed to CRSF parser
-		for {
-			b, err := uart.ReadByte()
-			if err != nil {
-				break
-			}
-			frameReady, frame := crsfParser.Feed(b)
-			if frameReady {
-				ExtractCRSFChannels(frame)
-				return true
-			}
+	// A channel to signal to the main loop that a new packet is ready
+	// This buffered channel prevents the sender (goroutine) from blocking
+	// if the receiver (main loop) is not ready.
+	packetReady = make(chan struct{}, 1)
+)
+
+// HandleReceiverInput is a polling function that reads bytes from the UART
+// and feeds them to the active protocol parser. This function should be
+// called continuously from the main loop.
+func HandleReceiverInput() {
+	for {
+		// Read a single byte from the UART.
+		// This call is non-blocking on most TinyGo targets. If no data is
+		// available, it will return an error immediately, allowing the
+		// main loop to continue.
+		b, err := uart.ReadByte()
+		if err != nil {
+			// No data available, so we sleep for a short time to yield.
+			time.Sleep(1 * time.Millisecond)
+			continue
 		}
-	case PROTOCOL_ELRS:
-		// ELRS uses CRSF protocol
-		for {
-			b, err := uart.ReadByte()
+
+		// A byte was successfully read, now feed it to the correct parser.
+		var frameReady bool
+		switch activeProtocol {
+		case PROTOCOL_IBUS:
+			// println("Received byte:", b)
+			frameReady = iBusParser.Feed(b)
+		case PROTOCOL_CRSF:
+			frameReady, err = crsfParser.Feed(b)
 			if err != nil {
-				break
+				// Handle parsing error if needed
+				continue
 			}
-			frameReady, frame := crsfParser.Feed(b)
-			if frameReady {
-				ExtractELRSChannels(frame)
-				return true
+		case PROTOCOL_ELRS:
+			//frameReady, _ = elrsParser.Feed(b)
+		}
+
+		if frameReady {
+			lastPacketTime = time.Now()
+			// Send a signal to the main loop that a new packet is ready.
+			// Use a select with a default case to ensure this send is non-blocking.
+			select {
+			case packetReady <- struct{}{}:
+			default:
+				// Channel is full, meaning the main loop is still processing the last packet.
+				// We can simply drop this signal without blocking.
 			}
 		}
 	}
-	return false
 }

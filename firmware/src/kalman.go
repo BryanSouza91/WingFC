@@ -1,4 +1,3 @@
-// --- Kalman Filter Implementation ---
 package main
 
 // KalmanFilter represents a multivariate Kalman Filter.
@@ -34,26 +33,18 @@ func NewKalmanFilter(dt float64) *KalmanFilter {
 	// Measurement Noise Covariance (R): Accel is noisy.
 	// Measurement measurements: pitch_accel, roll_accel
 	r := Identity(2)
-	r.Set(0, 0, 0.5) // Noise from accelerometer pitch
-	r.Set(1, 1, 0.5) // Noise from accelerometer roll
+	r.Set(0, 0, 0.5) // Pitch noise
+	r.Set(1, 1, 0.5) // Roll noise
 
-	// State Transition Matrix (F):
-	// A simple model that assumes constant velocity.
-	// We'll update this based on gyro readings in the Predict step.
+	// State Transition Matrix (F)
 	f := Identity(2)
 
-	// Observation Matrix (H):
-	// Maps the state vector to the measurement vector.
-	// [pitch_accel] = [1 0] * [pitch]
-	// [roll_accel ] = [0 1] * [roll]
+	// Observation Matrix (H): We observe pitch and roll directly
 	h := Identity(2)
-
-	// Initial Estimate Error Covariance (P)
-	p := Identity(2)
 
 	return &KalmanFilter{
 		X:  x,
-		P:  p,
+		P:  Identity(2), // P starts as an identity matrix
 		Q:  q,
 		R:  r,
 		F:  f,
@@ -62,7 +53,7 @@ func NewKalmanFilter(dt float64) *KalmanFilter {
 	}
 }
 
-// Predict updates the state and covariance based on a prediction from the gyroscope.
+// Predict updates the state and covariance using the control inputs from the gyroscope.
 func (kf *KalmanFilter) Predict(gyroX, gyroY float64) {
 	// Update the state transition matrix F using gyro rates.
 	// The new pitch is the old pitch + gyro_y * dt.
@@ -99,14 +90,15 @@ func (kf *KalmanFilter) Update(accelPitch, accelRoll float64) {
 	// Innovation covariance S = H * P_pred * H^T + R
 	hT := kf.H.Transpose()
 	S := kf.H.Multiply(kf.P).Multiply(hT).Add(kf.R)
+	Sinv := S.Inverse()
 
-	// Kalman Gain K = P_pred * H^T * S^-1
-	K := kf.P.Multiply(hT).Multiply(S.Inverse())
+	// Kalman gain K = P_pred * H^T * S^-1
+	K := kf.P.Multiply(hT).Multiply(Sinv)
 
-	// Update state estimate x_est = x_pred + K * y
+	// Updated state estimate x = x_pred + K * y
 	kf.X = kf.X.Add(K.Multiply(y))
 
-	// Update estimate error covariance P_est = (I - K * H) * P_pred
+	// Updated estimate covariance P = (I - K * H) * P_pred
 	I := Identity(2)
 	kf.P = I.Subtract(K.Multiply(kf.H)).Multiply(kf.P)
 }

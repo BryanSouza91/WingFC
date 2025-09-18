@@ -9,5 +9,8 @@ func NewELRSParser() *ELRSParser {
 
 // Extract ELRS channels (uses CRSF extraction)
 func ExtractELRSChannels(frame CRSFFrame) bool {
-	return ExtractCRSFChannels(frame)
+	// The CRSF and ELRS channel packing is identical.
+	// We call the public CRSF decoding function.
+	DecodeCRSFChannels(frame.Payload)
+	return true
 }

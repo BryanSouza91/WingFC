@@ -1,110 +1,117 @@
 package main
 
-// iBus multi-protocol receiver implementation
-// Supports FS-A8S (18 channels) and uses shared Channels array for integration with CRSF/ELRS
-
 import (
-	"machine"
-	"time"
+	"encoding/binary"
 )
 
-// Define constants for iBus protocol
+// IBus protocol constants
 const (
-	IBUS_HEADER1      = 0x20
-	IBUS_HEADER2      = 0x40
-	IBUS_NUM_CHANNELS = NumChannels                     // FS-A8S supports 18 channels
-	IBUS_PACKET_SIZE  = 2 + (IBUS_NUM_CHANNELS * 2) + 2 // Header (2) + Channels (18 * 2) + Checksum (2)
+	IBUS_HEADER1 = 0x20
+	IBUS_HEADER2 = 0x40
+	// The number of channels is now defined in config.go and shared via channels.go
+	IBUS_PACKET_SIZE = 2 + (NumChannels * 2) + 2 // Header (2) + Channels (18 * 2) + Checksum (2)
 )
 
-// State machine states for iBus parsing
+// IBus State Machine States
 type IBusState int
 
 const (
-	WAITING_FOR_HEADER1 IBusState = iota
-	WAITING_FOR_HEADER2
-	READING_PAYLOAD
-	READING_CHECKSUM_LOW
-	READING_CHECKSUM_HIGH
+	IBusStateHeader1 IBusState = iota
+	IBusStateHeader2
+	IBusStatePayload
+	IBusStateChecksum1
+	IBusStateChecksum2
 )
 
-var (
+// IBus Frame structure
+type IBusFrame struct {
+	Payload  [IBUS_PACKET_SIZE - 4]byte // Header and checksum bytes are not included
+	Checksum uint16
+}
 
-	// Channel variables removed; use channels.Channels instead
-	lastPacketTime time.Time
+// IBus Parser/State Machine
+type IBusParser struct {
+	state  IBusState
+	buffer [IBUS_PACKET_SIZE]byte
+	index  int
+	frame  IBusFrame
+}
 
-	ibusState     = WAITING_FOR_HEADER1
-	payloadBuffer [IBUS_PACKET_SIZE]byte
-	payloadIndex  int
-	checksum      uint16
-
-	uart = machine.DefaultUART
-)
-
-func ParseIBus() {
-	// Read byte from UART
-	data, err := uart.ReadByte()
-	if err != nil {
-		// UART read error, skip this cycle
-		return
+func NewIBusParser() *IBusParser {
+	return &IBusParser{
+		state: IBusStateHeader1,
 	}
-	switch ibusState {
-	case WAITING_FOR_HEADER1:
-		// Wait for first header byte
-		if data == IBUS_HEADER1 {
-			ibusState = WAITING_FOR_HEADER2
-			lastPacketTime = time.Now()
-		}
-	case WAITING_FOR_HEADER2:
-		// Wait for second header byte
-		if data == IBUS_HEADER2 {
-			ibusState = READING_PAYLOAD
-			payloadIndex = 0
-			checksum = 0xFFFF - uint16(IBUS_HEADER1) - uint16(IBUS_HEADER2)
-		} else {
-			// Unexpected header, reset state machine
-			ibusState = WAITING_FOR_HEADER1
-		}
-	case READING_PAYLOAD:
-		// Read channel payload bytes
-		if payloadIndex < IBUS_NUM_CHANNELS*2 {
-			payloadBuffer[payloadIndex] = data
-			checksum -= uint16(data)
-			payloadIndex++
-		} else {
-			// All payload bytes read, move to checksum
-			ibusState = READING_CHECKSUM_LOW
-			payloadBuffer[payloadIndex] = data
-			payloadIndex++
-		}
-	case READING_CHECKSUM_LOW:
-		// Read checksum low byte
-		payloadBuffer[payloadIndex] = data
-		ibusState = READING_CHECKSUM_HIGH
-		payloadIndex++
-	case READING_CHECKSUM_HIGH:
-		// Read checksum high byte and validate packet
-		payloadBuffer[payloadIndex] = data
-		receivedChecksum := uint16(payloadBuffer[IBUS_PACKET_SIZE-2]) | uint16(payloadBuffer[IBUS_PACKET_SIZE-1])<<8
+}
 
-		// Check for valid packet size before processing
-		if payloadIndex != IBUS_PACKET_SIZE-1 {
-			// Unexpected packet size, reset state
-			ibusState = WAITING_FOR_HEADER1
-			return
+// Feed a byte into the parser
+func (p *IBusParser) Feed(b byte) bool {
+	var frameReady bool
+	switch p.state {
+	case IBusStateHeader1:
+		if b == IBUS_HEADER1 {
+			p.state = IBusStateHeader2
+		} else {
+			// Reset on incorrect header byte
+			p.state = IBusStateHeader1
+		}
+	case IBusStateHeader2:
+		if b == IBUS_HEADER2 {
+			p.state = IBusStatePayload
+			p.index = 0
+		} else {
+			// Reset on incorrect header byte
+			p.state = IBusStateHeader1
+		}
+	case IBusStatePayload:
+		p.buffer[p.index] = b
+		p.index++
+		if p.index == len(p.frame.Payload) {
+			p.state = IBusStateChecksum1
+			p.index = 0
+		}
+	case IBusStateChecksum1:
+		p.frame.Checksum = uint16(b)
+		p.state = IBusStateChecksum2
+	case IBusStateChecksum2:
+		p.frame.Checksum |= uint16(b) << 8
+		p.state = IBusStateHeader1 // Reset for next frame
+
+		// Validate frame checksum
+		var calculatedChecksum uint16
+		for i := 0; i < len(p.frame.Payload); i += 2 {
+			calculatedChecksum += uint16(binary.LittleEndian.Uint16(p.buffer[i : i+2]))
 		}
 
-		// If checksum is valid, process channels
-		if receivedChecksum == checksum {
-			// Extract channels (18 channels, 2 bytes each)
-			for i := 0; i < IBUS_NUM_CHANNELS; i++ {
-				Channels[i] = uint16(payloadBuffer[2*i]) | uint16(payloadBuffer[2*i+1])<<8
+		// The iBus protocol uses a bitwise XOR of the calculated checksum with the magic number
+		if calculatedChecksum == p.frame.Checksum {
+			// Extract channels and store them in the global Channels array
+			var newChannels [NumChannels]uint16
+			for i := 0; i < NumChannels; i++ {
+				offset := i * 2
+				newChannels[i] = binary.LittleEndian.Uint16(p.buffer[offset : offset+2])
 			}
-			lastPacketTime = time.Now()
-		} else {
-			// Checksum mismatch, discard packet
-			// Optionally log error here
+			UpdateChannels(newChannels)
+			frameReady = true
 		}
-		// Reset state for next packet
-		ibusState = WAITING_FOR_HEADER1
+	}
+	return frameReady
+}
+
+// ParseIBus continuously reads bytes from the UART and feeds them to the IBus parser.
+func ParseIBus() {
+	p := NewIBusParser()
+	for {
+		b, err := uart.ReadByte()
+		if err == nil {
+			if p.Feed(b) {
+				// New frame is ready, signal the main loop
+				select {
+				case PacketReady <- struct{}{}:
+					// Sent signal
+				default:
+					// Channel is full, do nothing.
+				}
+			}
+		}
 	}
 }
