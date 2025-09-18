@@ -1,35 +1,43 @@
 package main
 
-import "machine"
 // WingFC Configuration
 // All user-configurable parameters and hardware mappings
+//
+// All the configurable values are defined here, making it easy to tune the
+// flight controller without changing the main application logic.
 
-// --- Protocol Selection ---
+// --- Protocol Settings ---
 const (
-	NumChannels    = 18
-	activeProtocol = PROTOCOL_IBUS // Set protocol: PROTOCOL_IBUS, PROTOCOL_CRSF, PROTOCOL_ELRS
+	// Number of supported RC channels
+	NumChannels = 18
 )
 
 // --- PWM Configuration ---
 const (
-	SERVO_PWM_FREQUENCY = 50   // Standard servo frequency (Hz)
-	ESC_PWM_FREQUENCY   = 500  // ESC frequency (Hz)
-	DEADBAND            = 20   // Deadband around neutral
-	HIGH_RX_VALUE       = 1800 // High Rx channel value for arming/calibration
+	// Standard servo frequency (Hz)
+	SERVO_PWM_FREQUENCY = 50
+
+	// ESC frequency (Hz)
+	ESC_PWM_FREQUENCY = 500
+
+	// Deadband around neutral for stick input
+	DEADBAND = 5
+
+	// High Rx channel value for arming/calibration
+	HIGH_RX_VALUE = 1800
 )
 
 // --- Flight Control Parameters ---
 const (
-	MAX_ROLL_RATE_DEG  = 600           // degrees/sec
-	MAX_PITCH_RATE_DEG = 200           // degrees/sec
-	PID_WEIGHT         = 0.5           // Weighting for combining gyro/accel with input
-	P, I, D            = 0.5, 0.1, 0.2 // PID gains
-)
+	// Maximum desired roll rate in degrees/sec
+	MAX_ROLL_RATE_DEG = 600
 
-// --- Hardware Mappings ---
-// The following pins are specific to the Xiao BLE
-const (
-	PWM_CH1_PIN = machine.D0
-	PWM_CH2_PIN = machine.D1
-	PWM_CH3_PIN = machine.D2 // The ESC needs its own pin and PWM peripheral
+	// Maximum desired pitch rate in degrees/sec
+	MAX_PITCH_RATE_DEG = 200
+
+	// Weighting for combining gyro/accel with input
+	PID_WEIGHT = 0.5
+
+	// PID gains (P, I, D) for the pitch and roll controllers
+	P, I, D = 0.5, 0.1, 0.2
 )
