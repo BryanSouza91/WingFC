@@ -15,9 +15,10 @@ const Version = "0.1.2"
 // Global variables for hardware interfaces, controllers, and filters.
 var (
 	// Hardware interfaces
-	uart = machine.DefaultUART
-	i2c  = machine.I2C0
-	lsm  *lsm6ds3tr.Device
+	uart   = machine.DefaultUART
+	i2c    = machine.I2C0
+	lsm    *lsm6ds3tr.Device
+	lsmInt = machine.LSM_INT
 
 	// PWM controllers and channels
 	pwm0   = machine.PWM0
@@ -31,6 +32,11 @@ var (
 	pitchPID *PIDController
 	kf       *KalmanFilter
 	imuData  IMU
+
+	// IMU calibration
+	gyroXSum, gyroYSum, gyroZSum, gyroBiasX, gyroBiasY, gyroBiasZ       float64 = 0., 0., 0., 0., 0., 0.
+	accelXSum, accelYSum, accelZSum, accelBiasX, accelBiasY, accelBiasZ float64 = 0., 0., 0., 0., 0., 0.
+	xG, yG, zG, xA, yA, zA                                              int32
 
 	// RC Channels
 	Channels [NumChannels]uint16
@@ -67,6 +73,9 @@ const (
 func main() {
 	time.Sleep(2 * time.Second) // Wait for hardware to stabilize
 	println("WingFC Flight Controller - Version", Version)
+	println("A TinyGo Flight Controller for Flying Wing Aircraft")
+	println("Source: github.com/BryanSouza91/WingFC")
+	println("Author: Bryan Souza (github.com/BryanSouza91)")
 
 	// --- Hardware Setup ---
 	uart.Configure(machine.UARTConfig{
@@ -80,18 +89,18 @@ func main() {
 		Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY,
 	}
 	if err := pwm0.Configure(servoPWMConfig); err != nil {
-		println("could not configure PWM:", err)
+		println("could not configure PWM for servos:", err)
 		return
 	}
 	pwmCh1, err = pwm0.Channel(PWM_CH1_PIN)
 	if err != nil {
-		println("could not get PWM channel:", err)
+		println("could not get PWM channel 1:", err)
 		return
 	}
 	pwm0.Set(pwmCh1, NEUTRAL_RX_VALUE)
 	pwmCh2, err = pwm0.Channel(PWM_CH2_PIN)
 	if err != nil {
-		println("could not get PWM channel:", err)
+		println("could not get PWM channel 2:", err)
 		return
 	}
 	pwm0.Set(pwmCh2, NEUTRAL_RX_VALUE)
@@ -107,7 +116,7 @@ func main() {
 	println("PWM configured for ESC.")
 	pwmCh3, err = pwm1.Channel(PWM_CH3_PIN)
 	if err != nil {
-		println("could not get PWM channel for pin D7:", err)
+		println("could not get PWM channel for ESC:", err)
 		return
 	}
 	pwm1.Set(pwmCh3, MIN_PULSE_WIDTH_US)
@@ -119,13 +128,12 @@ func main() {
 	println("I2C configured for IMU.")
 
 	// --- IMU Setup ---
-
 	lsm = lsm6ds3tr.New(i2c)
 	err = lsm.Configure(lsm6ds3tr.Configuration{
 		AccelRange:      lsm6ds3tr.ACCEL_8G,
-		AccelSampleRate: lsm6ds3tr.ACCEL_SR_104,
+		AccelSampleRate: lsm6ds3tr.ACCEL_SR_416,
 		GyroRange:       lsm6ds3tr.GYRO_1000DPS,
-		GyroSampleRate:  lsm6ds3tr.GYRO_SR_104,
+		GyroSampleRate:  lsm6ds3tr.GYRO_SR_416,
 	})
 	if err != nil {
 		for {
@@ -142,22 +150,19 @@ func main() {
 
 	// Calibrate gyro to find bias
 	println("Calibrating Gyro... Keep gyro still!")
-	var gyroXSum, gyroYSum, gyroBiasX, gyroBiasY float64 = 0., 0., 0., 0.
-	var xG, yG int32
-	const sampleSize = 10000
+	const sampleSize = 4000
 
 	for i := 0; i < sampleSize; i++ {
-		xG, yG, _, err = lsm.ReadRotation()
-		if err != nil {
-			println("Error reading gyro during calibration:", err)
-			continue
-		}
-		gyroXSum += float64(xG) * microDPSToRadS
-		gyroYSum += float64(yG) * microDPSToRadS
+		readLSMData()
 	}
+	accelBiasX = accelXSum / sampleSize
+	accelBiasY = accelYSum / sampleSize
+	accelBiasZ = accelZSum / sampleSize
+	println("Accel calibration complete. Bias X:", accelBiasX, "Bias Y:", accelBiasY, "Bias Z:", accelBiasZ)
 	gyroBiasX = gyroXSum / sampleSize
 	gyroBiasY = gyroYSum / sampleSize
-	println("Gyro calibration complete. Bias X:", gyroBiasX, "Bias Y:", gyroBiasY)
+	gyroBiasZ = gyroZSum / sampleSize
+	println("Gyro calibration complete. Bias X:", gyroBiasX, "Bias Y:", gyroBiasY, "Bias Z:", gyroBiasZ)
 
 	// --- Filter and Controller Setup ---
 	dt := 0.01
@@ -189,33 +194,12 @@ func main() {
 			// Control loop at fixed intervals
 			<-ticker.C
 
-			// Read raw sensor data from the IMU
-			rawAccelX, rawAccelY, rawAccelZ, err := lsm.ReadAcceleration()
-			if err != nil {
-				println("Error reading acceleration:", err)
-				continue
-			}
-			rawGyroX, rawGyroY, rawGyroZ, err := lsm.ReadRotation()
-			if err != nil {
-				println("Error reading rotation:", err)
-				continue
-			}
-
-			// Convert raw sensor readings to standard units (rad/s and m/s^2)
-			imuData.AccelX = float64(rawAccelX) * microGToMS2
-			imuData.AccelY = float64(rawAccelY) * microGToMS2
-			imuData.AccelZ = float64(rawAccelZ) * microGToMS2
-			imuData.GyroX = float64(rawGyroX)*microDPSToRadS - gyroBiasX
-			imuData.GyroY = float64(rawGyroY)*microDPSToRadS - gyroBiasY
-			imuData.GyroZ = float64(rawGyroZ) * microDPSToRadS
+			readLSMData()
+			processLSMData()
 
 			// Use the Kalman filter to fuse sensor data and get a stable attitude estimate.
 			kf.Predict(imuData.GyroX, imuData.GyroY)
-			kf.Update(imuData.pitchAccel(), imuData.rollAccel())
-
-			// Extract the fused roll and pitch from the Kalman filter
-			// currentRoll := kf.X.At(1, 0)
-			// currentPitch := kf.X.At(0, 0)
+			kf.Update(imuData.Pitch, imuData.Roll)
 
 			// Get desired roll and pitch rates from the RC receiver.
 			desiredRollRate := mapRange(float64(Channels[0]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
@@ -244,6 +228,8 @@ func main() {
 			// Convert control outputs to PWM pulse widths.
 			leftElevon = mapRange(float64(leftElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
 			rightElevon = mapRange(float64(rightElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+
+			// Constrain pulse widths to a valid range.
 			leftPulse := uint32(constrain(leftElevon, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US))
 			rightPulse := uint32(constrain(rightElevon, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US))
 
@@ -260,4 +246,35 @@ func main() {
 			println(leftPulse, rightPulse)
 		}
 	}
+}
+
+func readLSMData() {
+	// Read raw sensor data from the IMU
+	rawAccelX, rawAccelY, rawAccelZ, err := lsm.ReadAcceleration()
+	if err != nil {
+		println("Error reading acceleration:", err)
+	}
+	rawGyroX, rawGyroY, rawGyroZ, err := lsm.ReadRotation()
+	if err != nil {
+		println("Error reading rotation:", err)
+	}
+
+	// Convert raw sensor readings to standard units (rad/s and m/s^2)
+	imuData.AccelX = float64(rawAccelX) * microGToMS2
+	imuData.AccelY = float64(rawAccelY) * microGToMS2
+	imuData.AccelZ = float64(rawAccelZ) * microGToMS2
+	imuData.GyroX = float64(rawGyroX) * microDPSToRadS
+	imuData.GyroY = float64(rawGyroY) * microDPSToRadS
+	imuData.GyroZ = float64(rawGyroZ) * microDPSToRadS
+}
+
+func processLSMData() {
+	imuData.AccelX -= accelBiasX
+	imuData.AccelY -= accelBiasY
+	imuData.AccelZ -= accelBiasZ
+	imuData.GyroX -= gyroBiasX
+	imuData.GyroY -= gyroBiasY
+	imuData.GyroZ -= gyroBiasZ
+	imuData.Roll = imuData.rollAccel()
+	imuData.Pitch = imuData.pitchAccel()
 }

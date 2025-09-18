@@ -21,7 +21,7 @@ const (
 	ESC_PWM_FREQUENCY = 50
 
 	// Deadband around neutral for stick input
-	DEADBAND = 5
+	DEADBAND = 10
 
 	// High Rx channel value for arming/calibration
 	HIGH_RX_VALUE = 1800
