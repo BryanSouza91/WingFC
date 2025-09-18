@@ -10,15 +10,14 @@ import (
 )
 
 // Version of the flight controller software.
-const Version = "0.1.2"
+const Version = "0.1.1"
 
 // Global variables for hardware interfaces, controllers, and filters.
 var (
 	// Hardware interfaces
-	uart   = machine.DefaultUART
-	i2c    = machine.I2C0
-	lsm    *lsm6ds3tr.Device
-	lsmInt = machine.LSM_INT
+	uart = machine.DefaultUART
+	i2c  = machine.I2C0
+	lsm  *lsm6ds3tr.Device
 
 	// PWM controllers and channels
 	pwm0   = machine.PWM0
@@ -150,19 +149,7 @@ func main() {
 
 	// Calibrate gyro to find bias
 	println("Calibrating Gyro... Keep gyro still!")
-	const sampleSize = 4000
-
-	for i := 0; i < sampleSize; i++ {
-		readLSMData()
-	}
-	accelBiasX = accelXSum / sampleSize
-	accelBiasY = accelYSum / sampleSize
-	accelBiasZ = accelZSum / sampleSize
-	println("Accel calibration complete. Bias X:", accelBiasX, "Bias Y:", accelBiasY, "Bias Z:", accelBiasZ)
-	gyroBiasX = gyroXSum / sampleSize
-	gyroBiasY = gyroYSum / sampleSize
-	gyroBiasZ = gyroZSum / sampleSize
-	println("Gyro calibration complete. Bias X:", gyroBiasX, "Bias Y:", gyroBiasY, "Bias Z:", gyroBiasZ)
+	calibrate()
 
 	// --- Filter and Controller Setup ---
 	dt := 0.01
@@ -194,6 +181,13 @@ func main() {
 			// Control loop at fixed intervals
 			<-ticker.C
 
+			// add arming and failsafe here
+			// failsafe should use last valid packet time to determine if signal is lost
+			// arming should send nuetral signals to servos until armed
+			// and zero throttle to ESC until armed
+			// but it should use IMU for stabilization regardless of arming state
+
+			// Read and process IMU data.
 			readLSMData()
 			processLSMData()
 
@@ -277,4 +271,21 @@ func processLSMData() {
 	imuData.GyroZ -= gyroBiasZ
 	imuData.Roll = imuData.rollAccel()
 	imuData.Pitch = imuData.pitchAccel()
+}
+
+func calibrate() {
+	const sampleSize = 4000
+
+	for i := 0; i < sampleSize; i++ {
+		readLSMData()
+	}
+
+	accelBiasX = accelXSum / sampleSize
+	accelBiasY = accelYSum / sampleSize
+	accelBiasZ = accelZSum / sampleSize
+	println("Accel calibration complete. Bias X:", accelBiasX, "Bias Y:", accelBiasY, "Bias Z:", accelBiasZ)
+	gyroBiasX = gyroXSum / sampleSize
+	gyroBiasY = gyroYSum / sampleSize
+	gyroBiasZ = gyroZSum / sampleSize
+	println("Gyro calibration complete. Bias X:", gyroBiasX, "Bias Y:", gyroBiasY, "Bias Z:", gyroBiasZ)
 }
