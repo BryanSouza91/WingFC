@@ -60,7 +60,7 @@ const (
 	// --- Hardware Mappings ---
 	PWM_CH1_PIN = machine.D0 // Aileron Servo
 	PWM_CH2_PIN = machine.D1 // Elevator Servo
-	PWM_CH3_PIN = machine.D7 // ESC (Electronic Speed Controller)
+	PWM_CH3_PIN = machine.D2 // ESC (Electronic Speed Controller)
 )
 
 // main is the entry point for the TinyGo program.
@@ -88,11 +88,13 @@ func main() {
 		println("could not get PWM channel:", err)
 		return
 	}
+	pwm0.Set(pwmCh1, NEUTRAL_RX_VALUE)
 	pwmCh2, err = pwm0.Channel(PWM_CH2_PIN)
 	if err != nil {
 		println("could not get PWM channel:", err)
 		return
 	}
+	pwm0.Set(pwmCh2, NEUTRAL_RX_VALUE)
 	println("PWM channels for servos initialized.")
 
 	escPWMConfig := machine.PWMConfig{
@@ -108,6 +110,7 @@ func main() {
 		println("could not get PWM channel for pin D7:", err)
 		return
 	}
+	pwm1.Set(pwmCh3, MIN_PULSE_WIDTH_US)
 	println("PWM configured for ESC.")
 
 	i2c.Configure(machine.I2CConfig{
@@ -141,7 +144,7 @@ func main() {
 	println("Calibrating Gyro... Keep gyro still!")
 	var gyroXSum, gyroYSum, gyroBiasX, gyroBiasY float64 = 0., 0., 0., 0.
 	var xG, yG int32
-	const sampleSize = 1000
+	const sampleSize = 10000
 
 	for i := 0; i < sampleSize; i++ {
 		xG, yG, _, err = lsm.ReadRotation()
@@ -159,8 +162,8 @@ func main() {
 	// --- Filter and Controller Setup ---
 	dt := 0.01
 	kf = NewKalmanFilter(dt)
-	rollPID = NewPIDController(P, I, D)
-	pitchPID = NewPIDController(P, I, D)
+	pitchPID = NewPIDController(pP, pI, pD)
+	rollPID = NewPIDController(rP, rI, rD)
 	println("Control system initialized.")
 
 	// Create a channel to receive iBus packets.
@@ -168,6 +171,10 @@ func main() {
 
 	// Start the goroutine to read iBus packets asynchronously.
 	go readIBus(packetChan)
+
+	interval := 10 * time.Millisecond
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 
 	// Main application loop using select.
 	// --- Main Loop ---
@@ -179,6 +186,9 @@ func main() {
 			// println("Received and processed a new iBus packet.")
 
 		default:
+			// Control loop at fixed intervals
+			<-ticker.C
+
 			// Read raw sensor data from the IMU
 			rawAccelX, rawAccelY, rawAccelZ, err := lsm.ReadAcceleration()
 			if err != nil {
@@ -224,8 +234,8 @@ func main() {
 			pitchError := desiredPitchRate - imuData.GyroY
 
 			// Update PID controllers and get the control outputs.
-			rollOutput := rollPID.Update(rollError, dt)
-			pitchOutput := pitchPID.Update(pitchError, dt)
+			rollOutput := rollPID.Update(rollError, dt) * PID_WEIGHT
+			pitchOutput := pitchPID.Update(pitchError, dt) * PID_WEIGHT
 
 			// Combine PID outputs with a mix of raw RC input.
 			leftElevon := rollOutput + pitchOutput
@@ -241,15 +251,13 @@ func main() {
 			setServoPWM(leftPulse, rightPulse)
 
 			// Handle ESC signal from CH3
-			escPulse := uint32(mapRange(float64(Channels[2]), MIN_RX_VALUE, MAX_RX_VALUE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US))
+			escPulse := uint32(Channels[2])
 			setESC(escPulse)
 
 			// // Print status and sensor data for debugging
-			// println(desiredRollRate, rollOutput, desiredPitchRate, pitchOutput)
-			// println(Channels[0], Channels[1], Channels[2])
-			// println(leftPulse, rightPulse, escPulse)
-			// Wait for the next loop iteration.
-			time.Sleep(10 * time.Millisecond)
+			println(desiredRollRate, rollOutput, desiredPitchRate, pitchOutput)
+			println(Channels[0], Channels[1], Channels[2])
+			println(leftPulse, rightPulse)
 		}
 	}
 }

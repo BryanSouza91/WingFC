@@ -18,7 +18,7 @@ const (
 	SERVO_PWM_FREQUENCY = 50
 
 	// ESC frequency (Hz)
-	ESC_PWM_FREQUENCY = 500
+	ESC_PWM_FREQUENCY = 50
 
 	// Deadband around neutral for stick input
 	DEADBAND = 5
@@ -29,15 +29,16 @@ const (
 
 // --- Flight Control Parameters ---
 const (
-	// Maximum desired roll rate in degrees/sec
-	MAX_ROLL_RATE_DEG = 600
-
 	// Maximum desired pitch rate in degrees/sec
 	MAX_PITCH_RATE_DEG = 200
+
+	// Maximum desired roll rate in degrees/sec
+	MAX_ROLL_RATE_DEG = 600
 
 	// Weighting for combining gyro/accel with input
 	PID_WEIGHT = 0.5
 
 	// PID gains (P, I, D) for the pitch and roll controllers
-	P, I, D = 0.5, 0.1, 0.2
+	pP, pI, pD = 1., 0.1, 0.01
+	rP, rI, rD = 1., 0.1, 0.01
 )
