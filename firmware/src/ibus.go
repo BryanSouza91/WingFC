@@ -1,3 +1,6 @@
+//go:build ibus
+// +build ibus
+
 package main
 
 // iBus multi-protocol receiver implementation
@@ -13,6 +16,9 @@ const (
 	IBUS_PACKET_SIZE = 2 + (IBUS_NUM_CHANNELS * 2) + 2
 )
 
+// Create a channel to receive iBus packets.
+var packetChan = make(chan [IBUS_PACKET_SIZE]byte)
+
 // iBus State Machine States
 type IBusState int
 
@@ -24,10 +30,10 @@ const (
 	READING_CHECKSUM_HIGH
 )
 
-// readIBus is a goroutine that reads iBus packets from the UART and sends them to a channel.
+// readReceiver is a goroutine that reads iBus packets from the UART and sends them to a channel.
 // This function uses a state machine to ensure a complete packet is received before
 // being sent over the channel.
-func readIBus(packetChan chan<- [IBUS_PACKET_SIZE]byte) {
+func readReceiver(packetChan chan<- [IBUS_PACKET_SIZE]byte) {
 	ibusState := WAITING_FOR_HEADER1
 	payloadBuffer := [IBUS_PACKET_SIZE]byte{}
 	payloadIndex := 0
@@ -77,7 +83,7 @@ func readIBus(packetChan chan<- [IBUS_PACKET_SIZE]byte) {
 }
 
 // Helper function to process the iBus packet and update the global Channels array.
-func processIBusPacket(packet [IBUS_PACKET_SIZE]byte) {
+func processReceiverPacket(packet [IBUS_PACKET_SIZE]byte) {
 	// A simple checksum check can be added here
 	for i := 0; i < IBUS_NUM_CHANNELS; i++ {
 		Channels[i] = uint16(packet[2*i]) | uint16(packet[2*i+1])<<8

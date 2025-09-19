@@ -158,11 +158,8 @@ func main() {
 	rollPID = NewPIDController(rP, rI, rD)
 	println("Control system initialized.")
 
-	// Create a channel to receive iBus packets.
-	packetChan := make(chan [IBUS_PACKET_SIZE]byte)
-
-	// Start the goroutine to read iBus packets asynchronously.
-	go readIBus(packetChan)
+	// Start the goroutine to read receiver packets asynchronously.
+	go readReceiver(packetChan)
 
 	interval := 10 * time.Millisecond
 	ticker := time.NewTicker(interval)
@@ -174,7 +171,7 @@ func main() {
 		select {
 		case packet := <-packetChan:
 			// A complete packet has been received.
-			processIBusPacket(packet)
+			processReceiverPacket(packet)
 			// println("Received and processed a new iBus packet.")
 
 		default:
@@ -240,52 +237,4 @@ func main() {
 			println(leftPulse, rightPulse)
 		}
 	}
-}
-
-func readLSMData() {
-	// Read raw sensor data from the IMU
-	rawAccelX, rawAccelY, rawAccelZ, err := lsm.ReadAcceleration()
-	if err != nil {
-		println("Error reading acceleration:", err)
-	}
-	rawGyroX, rawGyroY, rawGyroZ, err := lsm.ReadRotation()
-	if err != nil {
-		println("Error reading rotation:", err)
-	}
-
-	// Convert raw sensor readings to standard units (rad/s and m/s^2)
-	imuData.AccelX = float64(rawAccelX) * microGToMS2
-	imuData.AccelY = float64(rawAccelY) * microGToMS2
-	imuData.AccelZ = float64(rawAccelZ) * microGToMS2
-	imuData.GyroX = float64(rawGyroX) * microDPSToRadS
-	imuData.GyroY = float64(rawGyroY) * microDPSToRadS
-	imuData.GyroZ = float64(rawGyroZ) * microDPSToRadS
-}
-
-func processLSMData() {
-	imuData.AccelX -= accelBiasX
-	imuData.AccelY -= accelBiasY
-	imuData.AccelZ -= accelBiasZ
-	imuData.GyroX -= gyroBiasX
-	imuData.GyroY -= gyroBiasY
-	imuData.GyroZ -= gyroBiasZ
-	imuData.Roll = imuData.rollAccel()
-	imuData.Pitch = imuData.pitchAccel()
-}
-
-func calibrate() {
-	const sampleSize = 4000
-
-	for i := 0; i < sampleSize; i++ {
-		readLSMData()
-	}
-
-	accelBiasX = accelXSum / sampleSize
-	accelBiasY = accelYSum / sampleSize
-	accelBiasZ = accelZSum / sampleSize
-	println("Accel calibration complete. Bias X:", accelBiasX, "Bias Y:", accelBiasY, "Bias Z:", accelBiasZ)
-	gyroBiasX = gyroXSum / sampleSize
-	gyroBiasY = gyroYSum / sampleSize
-	gyroBiasZ = gyroZSum / sampleSize
-	println("Gyro calibration complete. Bias X:", gyroBiasX, "Bias Y:", gyroBiasY, "Bias Z:", gyroBiasZ)
 }
