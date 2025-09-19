@@ -76,6 +76,7 @@ Add additional notes about how to deploy this on a live system
 WingFC supports multiple RC receiver protocols for maximum compatibility:
 
 - **iBus** (FlySky): Supports up to 18 channels (FS-A8S, FS-iA6B)
+- **CRSF** (TBS): Supports up to 16 channels
 
 ## Contributing
 
