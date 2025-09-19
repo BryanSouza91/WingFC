@@ -10,7 +10,7 @@ import (
 )
 
 // Version of the flight controller software.
-const Version = "0.1.1"
+const Version = "0.1.2"
 
 // Global variables for hardware interfaces, controllers, and filters.
 var (
