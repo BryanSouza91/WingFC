@@ -1,134 +1,151 @@
+//go:build crsf
+// +build crsf
+
 package main
 
 // CRSF (Crossfire) protocol receiver implementation
 // Used by TBS Crossfire and ExpressLRS for RC link
-// Implements a state machine for frame parsing and channel extraction
 
-// CRSF protocol constants
+// Define constants for CRSF protocol
 const (
-	// CRSF_SYNC_BYTE: Start of frame marker
-	// CRSF_MAX_PACKET_LEN: Maximum allowed packet length
-	CRSF_SYNC_BYTE      = 0xC8
-	CRSF_MAX_PACKET_LEN = 64
+	CRSF_ADDRESS_FLIGHT_CONTROLLER = 0xC8
+	CRSF_FRAMETYPE_RC_CHANNELS     = 0x16
+
+	// We'll use the number of channels from config.go
+	CRSF_NUM_CHANNELS = NumChannels
+
+	CRSF_PACKET_SIZE = 24 // A standard RC channels packed packet is 24 bytes long
 )
+
+// Create a channel to receive CRSF packets.
+var packetChan = make(chan [CRSF_PACKET_SIZE]byte)
 
 // CRSF State Machine States
 type CRSFState int
 
-// CRSFState: State machine for parsing CRSF frames
-
 const (
-	CRSFStateSync CRSFState = iota
-	CRSFStateLen
-	CRSFStateType
-	CRSFStatePayload
-	CRSFStateCRC
+	WAITING_FOR_HEADER1 CRSFState = iota
+	READING_LENGTH
+	READING_TYPE_AND_PAYLOAD
+	READING_CHECKSUM
 )
 
-// CRSF Frame structure
-type CRSFFrame struct {
-	Type    byte   // Frame type (e.g., RC channels, telemetry)
-	Payload []byte // Frame payload data
-	CRC     byte   // Frame CRC for integrity check
-}
-
-// CRSF Parser/State Machine
-// Similar to iBus, but for CRSF frames
-
-type CRSFParser struct {
-	state    CRSFState                 // Current state in the parser
-	buffer   [CRSF_MAX_PACKET_LEN]byte // Temporary buffer for payload
-	index    int                       // Current index in buffer
-	frameLen int                       // Length of current frame
-	frame    CRSFFrame                 // Parsed frame
-}
-
-func NewCRSFParser() *CRSFParser {
-	return &CRSFParser{
-		state: CRSFStateSync,
-	}
-}
-
-// Feed a byte into the parser
-func (p *CRSFParser) Feed(b byte) (frameReady bool, frame CRSFFrame) {
-	// Feed a single byte into the CRSF state machine
-	// Returns true and a valid frame when a complete, valid frame is parsed
-	switch p.state {
-	case CRSFStateSync:
-		// Wait for sync byte to start a new frame
-		if b == CRSF_SYNC_BYTE {
-			p.state = CRSFStateLen
-			p.index = 0
+// readReceiver is a goroutine that reads CRSF packets from the UART and sends them to a channel.
+// This function uses a state machine to ensure a complete packet is received before
+// being sent over the channel.
+func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
+	crsfState := WAITING_FOR_HEADER1
+	buffer := [CRSF_PACKET_SIZE]byte{}
+	packetIndex := 0
+	payloadLength := 0
+	
+	for {
+		data, err := uart.ReadByte()
+		if err != nil {
+			// If there's no data available, we can just continue.
+			continue
 		}
-	case CRSFStateLen:
-		// Read frame length
-		p.frameLen = int(b)
-		if p.frameLen > CRSF_MAX_PACKET_LEN {
-			// Invalid length, reset state machine
-			p.state = CRSFStateSync
-		} else {
-			p.state = CRSFStateType
-		}
-	case CRSFStateType:
-		// Read frame type
-		p.frame.Type = b
-		p.state = CRSFStatePayload
-		p.index = 0
-	case CRSFStatePayload:
-		// Read payload bytes
-		if p.index < p.frameLen-2 {
-			p.buffer[p.index] = b
-			p.index++
-			if p.index == p.frameLen-2 {
-				p.state = CRSFStateCRC
+
+		switch crsfState {
+		case WAITING_FOR_HEADER1:
+			// The first byte is the device address.
+			if data == CRSF_ADDRESS_FLIGHT_CONTROLLER {
+				buffer[0] = data
+				packetIndex = 1
+				crsfState = READING_LENGTH
 			}
+		case READING_LENGTH:
+			// The second byte is the frame length.
+			payloadLength = int(data)
+			buffer[packetIndex] = data
+			packetIndex++
+
+			// The packet size is frame length + 2 (address and length bytes).
+			// We validate the length here to prevent buffer overflow.
+			if payloadLength > (CRSF_PACKET_SIZE-2) {
+				crsfState = WAITING_FOR_HEADER1 // Invalid length, reset
+			} else {
+				crsfState = READING_TYPE_AND_PAYLOAD
+			}
+		case READING_TYPE_AND_PAYLOAD:
+			buffer[packetIndex] = data
+			packetIndex++
+
+			// We have received the full frame length (including the type byte and checksum).
+			// The CRSF packet length byte includes the frame type and payload, but not the sync/address byte or length byte itself.
+			// The total packet length will be the payload length + 2 (sync + length bytes).
+			if packetIndex >= payloadLength + 2 {
+				crsfState = READING_CHECKSUM
+			}
+		case READING_CHECKSUM:
+			buffer[packetIndex] = data
+			
+			// Validate the checksum
+			calculatedChecksum := calculateCrc8(buffer[2:packetIndex])
+			if calculatedChecksum == data {
+				// Send the complete packet to the channel.
+				packetChan <- buffer
+			}
+
+			// Reset the state machine for the next packet.
+			crsfState = WAITING_FOR_HEADER1
+			packetIndex = 0
 		}
-	case CRSFStateCRC:
-		// Read CRC byte and validate frame
-		p.frame.Payload = make([]byte, p.frameLen-2)
-		copy(p.frame.Payload, p.buffer[:p.frameLen-2])
-		p.frame.CRC = b
-		// Calculate CRC over sync, length, type, and payload
-		crc := calcCRSFCRC(append([]byte{CRSF_SYNC_BYTE, byte(p.frameLen), p.frame.Type}, p.frame.Payload...))
-		frameValid := crc == p.frame.CRC
-		p.state = CRSFStateSync
-		if frameValid {
-			// Valid frame received
-			return true, p.frame
-		}
-		// CRC failed, discard frame
-		return false, CRSFFrame{}
 	}
-	// Frame not complete yet
-	return false, CRSFFrame{}
 }
 
-// Calculate CRSF CRC (8-bit)
-func calcCRSFCRC(data []byte) byte {
-	// Calculate 8-bit CRC for CRSF frame
-	crc := byte(0)
+// processReceiverPacket takes a CRSF packet and extracts the RC channel values.
+// This function is called by the main loop.
+func processReceiverPacket(packet [CRSF_PACKET_SIZE]byte) {
+	// A CRSF RC Channels packet contains 16 channels packed into 22 bytes.
+	// Each channel is an 11-bit value.
+	// The payload starts at index 3 of the packet (after address, length, and type).
+	payload := packet[3:]
+
+	// RC Channel Encoding (Packed 11-bit)
+	// Up to 16 channels, each 11 bits.
+	// We'll use a local array to store the unpacked values.
+	var channelValues [CRSF_NUM_CHANNELS]uint16
+
+	// Loop through the 22-byte payload to unpack the 11-bit channel values.
+	for i := 0; i < 16; i++ {
+		firstByteIndex := i + (i / 8)
+		secondByteIndex := i + 1 + (i / 8)
+		thirdByteIndex := i + 2 + (i / 8)
+
+		var value uint16
+		// Channels are little-endian.
+		if i%2 == 0 { // Even channel (0, 2, 4...)
+			// Bits from byte 1 (least significant) and bits 0-2 from byte 2
+			value = uint16(payload[firstByteIndex]) | (uint16(payload[secondByteIndex]) << 8)
+		} else { // Odd channel (1, 3, 5...)
+			// Bits from byte 2 (bits 3-7) and all of byte 3
+			value = (uint16(payload[secondByteIndex]) >> 3) | (uint16(payload[thirdByteIndex]) << 5)
+		}
+
+		// Mask to get only the 11 bits.
+		channelValues[i] = value & 0x07FF
+	}
+
+	// Update the global Channels array.
+	for i := 0; i < CRSF_NUM_CHANNELS; i++ {
+		Channels[i] = channelValues[i]
+	}
+}
+
+// calculateCrc8 computes the CRC8 checksum for a CRSF packet.
+// The CRC8 algorithm for CRSF is a specific implementation of CRC8-DVB-S2.
+func calculateCrc8(data []byte) byte {
+	crc := byte(0x00)
 	for _, b := range data {
 		crc ^= b
+		for i := 0; i < 8; i++ {
+			if (crc & 0x80) != 0 {
+				crc = (crc << 1) ^ 0xD5
+			} else {
+				crc = crc << 1
+			}
+		}
 	}
 	return crc
-}
-
-// Extract channels from CRSF RC frame (Type 0x16)
-func ExtractCRSFChannels(frame CRSFFrame) bool {
-	// Extract RC channel data from CRSF frame (Type 0x16)
-	// Returns true if extraction is successful
-	if frame.Type != 0x16 {
-		// Not an RC channel frame
-		return false
-	}
-	if len(frame.Payload) < 22 {
-		// Payload too short for 16 channels
-		return false
-	}
-	for i := 0; i < NumChannels; i++ {
-		// Each channel is 11 bits, packed into payload
-		ch := uint16(frame.Payload[2*i]) | (uint16(frame.Payload[2*i+1]) << 8)
-		Channels[i] = ch & 0x07FF // Mask to 11 bits
-	}
-	return true
 }

@@ -1,5 +1,6 @@
-// --- Simple Matrix Library for this example ---
 package main
+
+// --- Simple Matrix Library for this example ---
 
 // Matrix represents a simple 2D float64 matrix.
 type Matrix struct {
@@ -83,21 +84,28 @@ func (m *Matrix) Transpose() *Matrix {
 }
 
 // Inverse returns the inverse of a 2x2 matrix.
-// This is a simplified function and will panic on non-invertible matrices.
 func (m *Matrix) Inverse() *Matrix {
 	if m.rows != 2 || m.cols != 2 {
-		panic("Inverse function is only for 2x2 matrices in this example")
+		panic("Inverse is only implemented for 2x2 matrices")
 	}
-	a, b := m.At(0, 0), m.At(0, 1)
-	c, d := m.At(1, 0), m.At(1, 1)
+
+	a := m.At(0, 0)
+	b := m.At(0, 1)
+	c := m.At(1, 0)
+	d := m.At(1, 1)
+
 	det := a*d - b*c
 	if det == 0 {
-		panic("Matrix is not invertible")
+		panic("Matrix is singular and cannot be inverted")
 	}
+
+	invDet := 1.0 / det
+
 	res := NewMatrix(2, 2)
-	res.Set(0, 0, d/det)
-	res.Set(0, 1, -b/det)
-	res.Set(1, 0, -c/det)
-	res.Set(1, 1, a/det)
+	res.Set(0, 0, d*invDet)
+	res.Set(0, 1, -b*invDet)
+	res.Set(1, 0, -c*invDet)
+	res.Set(1, 1, a*invDet)
+
 	return res
 }
