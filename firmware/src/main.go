@@ -193,28 +193,28 @@ func main() {
 			kf.Update(imuData.Pitch, imuData.Roll)
 
 			// Get desired roll and pitch rates from the RC receiver.
-			desiredRollRate := mapRange(float64(Channels[0]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
 			desiredPitchRate := mapRange(float64(Channels[1]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
+			desiredRollRate := mapRange(float64(Channels[0]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
 
 			// Apply deadband to avoid small unwanted movements
-			if math.Abs(desiredRollRate) < DEADBAND*math.Pi/180 {
-				desiredRollRate = 0
-			}
 			if math.Abs(desiredPitchRate) < DEADBAND*math.Pi/180 {
 				desiredPitchRate = 0
 			}
+			if math.Abs(desiredRollRate) < DEADBAND*math.Pi/180 {
+				desiredRollRate = 0
+			}
 
 			// Calculate the error for PID controllers.
-			rollError := desiredRollRate - imuData.GyroX
 			pitchError := desiredPitchRate - imuData.GyroY
+			rollError := desiredRollRate - imuData.GyroX
 
 			// Update PID controllers and get the control outputs.
-			rollOutput := rollPID.Update(rollError, dt) * PID_WEIGHT
 			pitchOutput := pitchPID.Update(pitchError, dt) * PID_WEIGHT
+			rollOutput := rollPID.Update(rollError, dt) * PID_WEIGHT
 
 			// Combine PID outputs with a mix of raw RC input.
-			leftElevon := rollOutput + pitchOutput
-			rightElevon := rollOutput - pitchOutput
+			leftElevon := pitchOutput + rollOutput
+			rightElevon := pitchOutput - rollOutput
 
 			// Convert control outputs to PWM pulse widths.
 			leftElevon = mapRange(float64(leftElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
@@ -232,7 +232,7 @@ func main() {
 			setESC(escPulse)
 
 			// // Print status and sensor data for debugging
-			println(desiredRollRate, rollOutput, desiredPitchRate, pitchOutput)
+			println(desiredPitchRate, pitchOutput, desiredRollRate, rollOutput)
 			println(Channels[0], Channels[1], Channels[2])
 			println(leftPulse, rightPulse)
 		}

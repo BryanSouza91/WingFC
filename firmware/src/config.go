@@ -38,6 +38,9 @@ const (
 	// Weighting for combining gyro/accel with input
 	PID_WEIGHT = 0.5
 
+	// LPF alpha for gyro/accel fusion
+	LPF_ALPHA = 0.2
+
 	// PID gains (P, I, D) for the pitch and roll controllers
 	pP, pI, pD = 1., 0.1, 0.01
 	rP, rI, rD = 1., 0.1, 0.01
