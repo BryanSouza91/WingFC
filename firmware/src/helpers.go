@@ -1,7 +1,5 @@
 package main
 
-import "golang.org/x/exp/constraints"
-
 // Read raw IMU data from the LSM6DS3TR sensor and apply a low-pass filter.
 func readLSMData() {
 	// Read raw sensor data from the IMU
@@ -74,10 +72,7 @@ func constrain(value, min, max float64) float64 {
 }
 
 // Helper function to map a value from one range to another.
-func mapRangeFloat[T constraints.Float](value, fromMin, fromMax, toMin, toMax T) T {
-	return (value-fromMin)/(fromMax-fromMin)*(toMax-toMin) + toMin
-}
-func mapRangeInt[T constraints.Integer](value, fromMin, fromMax, toMin, toMax T) T {
+func mapRange[T uint16 | uint32 | float64](value, fromMin, fromMax, toMin, toMax T) T {
 	return (value-fromMin)/(fromMax-fromMin)*(toMax-toMin) + toMin
 }
 

@@ -36,6 +36,7 @@ var (
 	accelXSum, accelYSum, accelZSum, accelBiasX, accelBiasY, accelBiasZ float64 = 0., 0., 0., 0., 0., 0.
 	gyroXSum, gyroYSum, gyroZSum, gyroBiasX, gyroBiasY, gyroBiasZ       float64 = 0., 0., 0., 0., 0., 0.
 	xA, yA, zA, xG, yG, zG                                              int32
+	desiredPitchRate, desiredRollRate                                   float64
 
 	// RC Channels
 	Channels [NumChannels]uint16
@@ -217,12 +218,12 @@ func main() {
 			// In armed mode, use RC inputs to set desired rates.
 			if Channels[4] < HIGH_RX_VALUE { // Switch to armed mode if CH5 is high
 				// This is disarmed mode, set desired rates to zero
-				desiredPitchRate := mapRangeFloat(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
-				desiredRollRate := mapRangeFloat(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
+				desiredPitchRate = mapRange(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
+				desiredRollRate = mapRange(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
 			} else {
 				// Get desired roll and pitch rates from the RC receiver.
-				desiredPitchRate := mapRangeFloat(float64(Channels[1]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
-				desiredRollRate := mapRangeFloat(float64(Channels[0]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
+				desiredPitchRate = mapRange(float64(Channels[1]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
+				desiredRollRate = mapRange(float64(Channels[0]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
 			}
 			// Apply deadband to avoid small unwanted movements
 			if math.Abs(desiredPitchRate) < DEADBAND*math.Pi/180 {
@@ -245,8 +246,8 @@ func main() {
 			rightElevon := pitchOutput - rollOutput
 
 			// Convert control outputs to PWM pulse widths.
-			leftElevon = mapRangeFloat(float64(leftElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
-			rightElevon = mapRangeFloat(float64(rightElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			leftElevon = mapRange(float64(leftElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			rightElevon = mapRange(float64(rightElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
 
 			// Constrain pulse widths to a valid range.
 			leftPulse := uint32(constrain(leftElevon, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US))
