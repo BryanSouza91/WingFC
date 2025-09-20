@@ -27,18 +27,20 @@ var (
 	pwmCh3 uint8
 
 	// Control system components
-	rollPID  *PIDController
 	pitchPID *PIDController
+	rollPID  *PIDController
 	kf       *KalmanFilter
 	imuData  IMU
 
 	// IMU calibration
-	gyroXSum, gyroYSum, gyroZSum, gyroBiasX, gyroBiasY, gyroBiasZ       float64 = 0., 0., 0., 0., 0., 0.
 	accelXSum, accelYSum, accelZSum, accelBiasX, accelBiasY, accelBiasZ float64 = 0., 0., 0., 0., 0., 0.
-	xG, yG, zG, xA, yA, zA                                              int32
+	gyroXSum, gyroYSum, gyroZSum, gyroBiasX, gyroBiasY, gyroBiasZ       float64 = 0., 0., 0., 0., 0., 0.
+	xA, yA, zA, xG, yG, zG                                              int32
 
 	// RC Channels
 	Channels [NumChannels]uint16
+
+	LastPacketTime time.Time
 
 	err error
 )
@@ -170,19 +172,39 @@ func main() {
 	for {
 		select {
 		case packet := <-packetChan:
+			LastPacketTime = time.Now()
 			// A complete packet has been received.
 			processReceiverPacket(packet)
-			// println("Received and processed a new iBus packet.")
+			// println("Received and processed a new receiver packet.")
 
 		default:
 			// Control loop at fixed intervals
 			<-ticker.C
 
-			// add arming and failsafe here
-			// failsafe should use last valid packet time to determine if signal is lost
-			// arming should send nuetral signals to servos until armed
-			// and zero throttle to ESC until armed
-			// but it should use IMU for stabilization regardless of arming state
+			// ---- Failsafe and Mode Handling ----
+			// If no valid packet received recently, set servos and ESC to safe values
+			// and skip the rest of the loop.
+			if time.Since(LastPacketTime) > 500*time.Millisecond {
+				setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+				setESC(MIN_PULSE_WIDTH_US)
+				continue // Skip the rest of the loop if no valid signal
+			}
+
+			// In manual mode, directly map RC inputs to servo outputs.
+			if Channels[7] < HIGH_RX_VALUE { // Switch to manual mode if CH8 is low
+				// In manual mode, directly map RC inputs to servo outputs.
+				leftPulse := uint32(Channels[0])  // CH1 to left elevon
+				rightPulse := uint32(Channels[1]) // CH2 to right elevon
+				setServoPWM(leftPulse, rightPulse)
+
+				// Set ESC from CH3
+				escPulse := uint32(Channels[2])
+				setESC(escPulse)
+
+				continue // Skip stabilization logic in manual mode
+			}
+
+			// In stabilized mode, use PID controllers to stabilize the aircraft.
 
 			// Read and process IMU data.
 			readLSMData()
@@ -192,10 +214,16 @@ func main() {
 			kf.Predict(imuData.GyroX, imuData.GyroY)
 			kf.Update(imuData.Pitch, imuData.Roll)
 
-			// Get desired roll and pitch rates from the RC receiver.
-			desiredPitchRate := mapRangeFloat(float64(Channels[1]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
-			desiredRollRate := mapRangeFloat(float64(Channels[0]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
-
+			// In armed mode, use RC inputs to set desired rates.
+			if Channels[4] < HIGH_RX_VALUE { // Switch to armed mode if CH5 is high
+				// This is disarmed mode, set desired rates to zero
+				desiredPitchRate := mapRangeFloat(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
+				desiredRollRate := mapRangeFloat(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
+			} else {
+				// Get desired roll and pitch rates from the RC receiver.
+				desiredPitchRate := mapRangeFloat(float64(Channels[1]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
+				desiredRollRate := mapRangeFloat(float64(Channels[0]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
+			}
 			// Apply deadband to avoid small unwanted movements
 			if math.Abs(desiredPitchRate) < DEADBAND*math.Pi/180 {
 				desiredPitchRate = 0
@@ -227,6 +255,12 @@ func main() {
 			// Set the PWM signals for the servos.
 			setServoPWM(leftPulse, rightPulse)
 
+			// In armed mode, set the ESC from CH3
+			if Channels[4] < HIGH_RX_VALUE { // Switch to armed mode if CH5 is high
+				// This is disarmed mode, set ESC to minimum
+				setESC(MIN_PULSE_WIDTH_US)
+				continue // Skip ESC setting in disarmed mode
+			}
 			// Handle ESC signal from CH3
 			escPulse := uint32(Channels[2])
 			setESC(escPulse)

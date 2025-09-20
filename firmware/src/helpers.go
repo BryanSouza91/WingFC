@@ -39,8 +39,8 @@ func processLSMData() {
 	imuData.GyroX -= gyroBiasX
 	imuData.GyroY -= gyroBiasY
 	imuData.GyroZ -= gyroBiasZ
-	imuData.Roll = imuData.rollAccel()
 	imuData.Pitch = imuData.pitchAccel()
+	imuData.Roll = imuData.rollAccel()
 }
 
 // Calibrate the IMU by averaging a number of samples to determine bias offsets.
@@ -61,7 +61,6 @@ func calibrate() {
 	gyroBiasZ = gyroZSum / sampleSize
 	println("Gyro calibration complete. Bias X:", gyroBiasX, "Bias Y:", gyroBiasY, "Bias Z:", gyroBiasZ)
 }
-
 
 // Helper function to constrain a value within min and max bounds.
 func constrain(value, min, max float64) float64 {
