@@ -235,9 +235,7 @@ func main() {
 			println(desiredPitchRate, pitchOutput, desiredRollRate, rollOutput)
 			println()
 			println(Channels[0], Channels[1], Channels[2])
-			println(leftPulse, rightPulse, escPulse)
-			println("__________________________________________________________")
-			println()
+			println(leftPulse, rightPulse)
 		}
 	}
 }
