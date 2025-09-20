@@ -75,7 +75,10 @@ func constrain(value, min, max float64) float64 {
 }
 
 // Helper function to map a value from one range to another.
-func mapRange[T constraints.Float](value, fromMin, fromMax, toMin, toMax T) T {
+func mapRangeFloat[T constraints.Float](value, fromMin, fromMax, toMin, toMax T) T {
+	return (value-fromMin)/(fromMax-fromMin)*(toMax-toMin) + toMin
+}
+func mapRangeInt[T constraints.Integer](value, fromMin, fromMax, toMin, toMax T) T {
 	return (value-fromMin)/(fromMax-fromMin)*(toMax-toMin) + toMin
 }
 

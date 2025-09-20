@@ -193,8 +193,8 @@ func main() {
 			kf.Update(imuData.Pitch, imuData.Roll)
 
 			// Get desired roll and pitch rates from the RC receiver.
-			desiredPitchRate := mapRange(float64(Channels[1]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
-			desiredRollRate := mapRange(float64(Channels[0]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
+			desiredPitchRate := mapRangeFloat(float64(Channels[1]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
+			desiredRollRate := mapRangeFloat(float64(Channels[0]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
 
 			// Apply deadband to avoid small unwanted movements
 			if math.Abs(desiredPitchRate) < DEADBAND*math.Pi/180 {
@@ -217,8 +217,8 @@ func main() {
 			rightElevon := pitchOutput - rollOutput
 
 			// Convert control outputs to PWM pulse widths.
-			leftElevon = mapRange(float64(leftElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
-			rightElevon = mapRange(float64(rightElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			leftElevon = mapRangeFloat(float64(leftElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			rightElevon = mapRangeFloat(float64(rightElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
 
 			// Constrain pulse widths to a valid range.
 			leftPulse := uint32(constrain(leftElevon, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US))
@@ -233,8 +233,11 @@ func main() {
 
 			// // Print status and sensor data for debugging
 			println(desiredPitchRate, pitchOutput, desiredRollRate, rollOutput)
+			println()
 			println(Channels[0], Channels[1], Channels[2])
-			println(leftPulse, rightPulse)
+			println(leftPulse, rightPulse, escPulse)
+			println("__________________________________________________________")
+			println()
 		}
 	}
 }
