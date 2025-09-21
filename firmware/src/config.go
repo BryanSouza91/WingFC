@@ -12,6 +12,18 @@ const (
 	NumChannels = 18
 )
 
+// --- Receiver Configuration ---
+// --- Channel Mappings ---
+
+const (
+	AileronChannel    = 0 // CH1
+	ElevatorChannel   = 1 // CH2
+	ThrottleChannel   = 2 // CH3
+	ArmChannel        = 4 // CH5
+	CalibrateChannel  = 5 // CH6
+	ManualModeChannel = 6 // CH7
+)
+
 // --- PWM Configuration ---
 const (
 	// Standard servo frequency (Hz)

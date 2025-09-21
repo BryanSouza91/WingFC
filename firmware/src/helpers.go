@@ -1,7 +1,5 @@
 package main
 
-import "golang.org/x/exp/constraints"
-
 // Read raw IMU data from the LSM6DS3TR sensor and apply a low-pass filter.
 func readLSMData() {
 	// Read raw sensor data from the IMU
@@ -39,8 +37,8 @@ func processLSMData() {
 	imuData.GyroX -= gyroBiasX
 	imuData.GyroY -= gyroBiasY
 	imuData.GyroZ -= gyroBiasZ
-	imuData.Roll = imuData.rollAccel()
 	imuData.Pitch = imuData.pitchAccel()
+	imuData.Roll = imuData.rollAccel()
 }
 
 // Calibrate the IMU by averaging a number of samples to determine bias offsets.
@@ -62,7 +60,6 @@ func calibrate() {
 	println("Gyro calibration complete. Bias X:", gyroBiasX, "Bias Y:", gyroBiasY, "Bias Z:", gyroBiasZ)
 }
 
-
 // Helper function to constrain a value within min and max bounds.
 func constrain(value, min, max float64) float64 {
 	if value < min {
@@ -75,7 +72,7 @@ func constrain(value, min, max float64) float64 {
 }
 
 // Helper function to map a value from one range to another.
-func mapRange[T constraints.Float](value, fromMin, fromMax, toMin, toMax T) T {
+func mapRange[T uint16 | uint32 | float64](value, fromMin, fromMax, toMin, toMax T) T {
 	return (value-fromMin)/(fromMax-fromMin)*(toMax-toMin) + toMin
 }
 

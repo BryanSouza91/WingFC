@@ -2,7 +2,7 @@
 
 WingFC is an open-source embedded flight controller for fixed-wing aircraft, designed for TinyGo. It provides stabilization, mixing, and safety features for elevon-equipped models, with a focus on reliability and ease of use.
 
-### Latest Version 0.1.2
+### Latest Version 0.2.0
 
 ## Getting Started
 
@@ -19,7 +19,7 @@ What things you need to install the software and how to install them
 
 ### Installing
 
-[Download source code](https://github.com/BryanSouza91/WingFC/releases/tag/v0.1.2)
+[Download source code](https://github.com/BryanSouza91/WingFC/releases/tag/v0.2.0)
 Extract source code then navigate to the top directory of the source.
 ```
 cd firmware/src
@@ -77,6 +77,7 @@ WingFC supports multiple RC receiver protocols for maximum compatibility:
 
 - **iBus** (FlySky): Supports up to 18 channels (FS-A8S, FS-iA6B)
 - **CRSF** (TBS): Supports up to 16 channels
+- **ELRS** (open-source): Supports up to 16 channels (uses CRSF build)
 
 ## Contributing
 
