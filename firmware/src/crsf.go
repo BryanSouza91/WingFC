@@ -142,7 +142,7 @@ func processReceiverPacket(packet [CRSF_PACKET_SIZE]byte) {
 	for i := 0; i < CRSF_NUM_CHANNELS; i++ {
 		// As a flight controller, you typically need to convert the raw
 		// CRSF value to a standard PWM pulse width in microseconds (1000-2000).
-		Channels[i] = mapRangeInt(channelValues[i], CRSF_CHANNEL_VALUE_MIN, CRSF_CHANNEL_VALUE_MAX, MIN_RX_VALUE, MAX_RX_VALUE)
+		Channels[i] = mapRange(channelValues[i], CRSF_CHANNEL_VALUE_MIN, CRSF_CHANNEL_VALUE_MAX, MIN_RX_VALUE, MAX_RX_VALUE)
 	}
 }
 
