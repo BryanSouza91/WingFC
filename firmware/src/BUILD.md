@@ -11,7 +11,7 @@ Before you begin, ensure you have the following tools installed and configured o
 
 ## **Multi-Protocol Support**
 
-The WingFC firmware supports multiple RC receiver protocols, specifically iBus and CRSF. Each protocol is implemented in a separate Go file (`ibus.go` and `crsf.go`) and uses a [Go build tag](https://www.google.com/search?q=https://pkg.go.dev/cmd/go%23hdr-Build_tags) to enable or disable its inclusion during compilation.
+The WingFC firmware supports multiple RC receiver protocols, specifically iBus and CRSF. Each protocol is implemented in a separate Go file (``ibus.go`` and ``crsf.go``) and uses a [Go build tag](https://www.google.com/search?q=https://pkg.go.dev/cmd/go%23hdr-Build_tags) to enable or disable its inclusion during compilation.
 
 To build the firmware for a specific protocol, you must include the corresponding build tag in the tinygo build command using the `-tags` flag.
 
