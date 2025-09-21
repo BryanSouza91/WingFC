@@ -23,17 +23,17 @@ Use one of the following commands to build the firmware for your desired protoco
 
 This command compiles the firmware with iBus protocol support enabled.
 
-`tinygo build \-o wingfc-ibus.hex \-target=xiao-ble \-tags=ibus .`
+`tinygo build -o wingfc-ibus.hex -target=xiao-ble -tags=ibus .`
 
 ### **Build for CRSF Protocol**
 
 This command compiles the firmware with CRSF protocol support enabled.
 
-`tinygo build \-o wingfc-crsf.hex \-target=xiao-ble \-tags=crsf .`
+`tinygo build -o wingfc-crsf.hex -target=xiao-ble -tags=crsf .`
 
 ### **Explanation of Flags**
 
-* `\-o \<filename\>`: Specifies the output filename for the compiled firmware. We use a different name for each protocol for clarity.  
-* `\-target=\<board\>`: Specifies the target hardware board, the Xiao nrf52840 Sense.
-* `\-tags=\<protocol\>`: This is the critical flag for protocol selection. It tells the compiler which protocol file to include in the build.  
+* `-o <filename>`: Specifies the output filename for the compiled firmware. We use a different name for each protocol for clarity.  
+* `-target=<board>`: Specifies the target hardware board, the Xiao nrf52840 Sense.
+* `-tags=<protocol>`: This is the critical flag for protocol selection. It tells the compiler which protocol file to include in the build.  
 * `.`: The final dot indicates that the source code is in the current directory.
