@@ -1,6 +1,6 @@
 package main
 
-// --- Simple Matrix Library for this example ---
+// --- Simple Matrix Library for the Kalman Filter Library ---
 
 // Matrix represents a simple 2D float64 matrix.
 type Matrix struct {

@@ -30,7 +30,7 @@ const (
 	READING_CHECKSUM_HIGH
 )
 
-// readReceiver is a goroutine that reads iBus packets from the UART and sends them to a channel.
+// readIBus is a goroutine that reads iBus packets from the UART and sends them to a channel.
 // This function uses a state machine to ensure a complete packet is received before
 // being sent over the channel.
 func readReceiver(packetChan chan<- [IBUS_PACKET_SIZE]byte) {

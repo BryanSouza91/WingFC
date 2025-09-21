@@ -45,7 +45,6 @@ func processLSMData() {
 // This function should be called when the aircraft is stationary and level.
 func calibrate() {
 	const sampleSize = 4000
-
 	for i := 0; i < sampleSize; i++ {
 		readLSMData()
 	}
@@ -76,16 +75,28 @@ func mapRange[T uint16 | uint32 | float64](value, fromMin, fromMax, toMin, toMax
 	return (value-fromMin)/(fromMax-fromMin)*(toMax-toMin) + toMin
 }
 
-// Helper function to set servo PWM outputs using global variables.
-func setServoPWM(leftPulse, rightPulse uint32) {
-	// Set the PWM duty cycle for left elevon (CH1)
-	pwm0.Set(pwmCh1, leftPulse)
-	// Set the PWM duty cycle for right elevon (CH2)
-	pwm0.Set(pwmCh2, rightPulse)
+// setServo sets the PWM duty cycle for the aileron and elevator servos.
+// It converts a pulse width in microseconds to a value relative to the PWM period.
+func setServo(leftPulse, rightPulse uint32) {
+	// The Period() function is not available. We use the saved period instead.
+	top_value := pwm0.Top()
+
+	// Calculate the duty cycle for the left servo.
+	duty_left := uint32(uint64(leftPulse) * 1000 * uint64(top_value) / uint64(servoPeriodNs))
+	pwm0.Set(pwmCh1, duty_left)
+
+	// Calculate the duty cycle for the right servo.
+	duty_right := uint32(uint64(rightPulse) * 1000 * uint64(top_value) / uint64(servoPeriodNs))
+	pwm0.Set(pwmCh2, duty_right)
 }
 
-// Helper function to set the ESC's PWM output using a global variable.
+// setESC sets the PWM duty cycle for the ESC.
+// It converts a pulse width in microseconds to a value relative to the PWM period.
 func setESC(pulseWidth uint32) {
-	// The ESC's channel is typically CH3
-	pwm1.Set(pwmCh3, pulseWidth)
+	// The Period() function is not available. We use the saved period instead.
+	top_value := pwm1.Top()
+
+	// Calculate the duty cycle for the ESC.
+	duty := uint32(uint64(pulseWidth) * 1000 * uint64(top_value) / uint64(escPeriodNs))
+	pwm1.Set(pwmCh3, duty)
 }

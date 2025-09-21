@@ -21,11 +21,13 @@ var (
 	watchdog = machine.Watchdog
 
 	// PWM controllers and channels
-	pwm0   = machine.PWM0
-	pwm1   = machine.PWM1
-	pwmCh1 uint8
-	pwmCh2 uint8
-	pwmCh3 uint8
+	pwm0          = machine.PWM0
+	pwm1          = machine.PWM1
+	pwmCh1        uint8
+	pwmCh2        uint8
+	pwmCh3        uint8
+	servoPeriodNs uint64
+	escPeriodNs   uint64
 
 	// Control system components
 	pitchPID *PIDController
@@ -76,9 +78,7 @@ const (
 	FAILSAFE_TIMEOUT_MS = 500
 
 	// State machine states
-	INITIALIZATION flightState = iota
-	WAITING
-	CALIBRATING
+	WAITING flightState = iota
 	FLIGHT_MODE
 	FAILSAFE
 )
@@ -93,8 +93,98 @@ func main() {
 	println("Source: github.com/BryanSouza91/WingFC")
 	println("Author: Bryan Souza (github.com/BryanSouza91)")
 
-	flightState := INITIALIZATION
-	lastFlightState = INITIALIZATION
+	println("Initializing...")
+
+	// --- Hardware Setup ---
+	uart.Configure(machine.UARTConfig{
+		BaudRate: 115200,
+		TX:       machine.NoPin,
+		RX:       machine.UART_RX_PIN,
+	})
+	println("UART configured for receiver.")
+
+	servoPWMConfig := machine.PWMConfig{
+		Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY,
+	}
+	if err := pwm0.Configure(servoPWMConfig); err != nil {
+		println("could not configure PWM for servos:", err)
+		return
+	}
+	servoPeriodNs = servoPWMConfig.Period
+	pwmCh1, err = pwm0.Channel(PWM_CH1_PIN)
+	if err != nil {
+		println("could not get PWM channel 1:", err)
+		return
+	}
+	pwmCh2, err = pwm0.Channel(PWM_CH2_PIN)
+	if err != nil {
+		println("could not get PWM channel 2:", err)
+		return
+	}
+	setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+	println("PWM channels for servos initialized.")
+
+	escPWMConfig := machine.PWMConfig{
+		Period: machine.GHz * 1 / ESC_PWM_FREQUENCY,
+	}
+	if err = pwm1.Configure(escPWMConfig); err != nil {
+		println("could not configure PWM for ESC:", err)
+		return
+	}
+	escPeriodNs = escPWMConfig.Period
+	pwmCh3, err = pwm1.Channel(PWM_CH3_PIN)
+	if err != nil {
+		println("could not get PWM channel for ESC:", err)
+		return
+	}
+	setESC(MIN_PULSE_WIDTH_US)
+	println("PWM configured for ESC.")
+
+	i2c.Configure(machine.I2CConfig{
+		Frequency: 400 * machine.KHz,
+	})
+	println("I2C configured for IMU.")
+
+	// --- IMU Setup ---
+	lsm = lsm6ds3tr.New(i2c)
+	err = lsm.Configure(lsm6ds3tr.Configuration{
+		AccelRange:      lsm6ds3tr.ACCEL_8G,
+		AccelSampleRate: lsm6ds3tr.ACCEL_SR_416,
+		GyroRange:       lsm6ds3tr.GYRO_1000DPS,
+		GyroSampleRate:  lsm6ds3tr.GYRO_SR_416,
+	})
+	if err != nil {
+		for {
+			println("Failed to configure LSM6DS3TR:", err.Error())
+			time.Sleep(time.Second)
+		}
+	}
+	if !lsm.Connected() {
+		println("LSM6DS3TR not connected")
+		time.Sleep(time.Second)
+		return
+	}
+	println("LSM6DS3TR initialized.")
+
+	// Calibrate gyro to find bias
+	println("Initial calibration")
+	println("Calibrating Gyro... Keep gyro still!")
+	calibrate()
+
+	// --- Filter and Controller Setup ---
+	kf = NewKalmanFilter(dt)
+	pitchPID = NewPIDController(pP, pI, pD)
+	rollPID = NewPIDController(rP, rI, rD)
+	println("Control system initialized.")
+
+	// --- Watchdog Setup ---
+	watchdog.Configure(machine.WatchdogConfig{
+		TimeoutMillis: 500, // 500ms timeout
+	})
+	watchdog.Start()
+
+	flightState := WAITING
+	lastFlightState = WAITING
 
 	// Start the goroutine to read receiver packets asynchronously.
 	go readReceiver(packetChan)
@@ -116,7 +206,6 @@ func main() {
 		default:
 			// Control loop at fixed intervals
 			<-ticker.C
-
 			// Always check for failsafe condition before the state machine logic
 			// This provides a quick response to signal loss
 			if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState != FAILSAFE && flightState != WAITING {
@@ -125,110 +214,10 @@ func main() {
 
 			// The state machine from previous versions is now the default case
 			switch flightState {
-			case INITIALIZATION:
-
-				// --- Hardware Setup ---
-				uart.Configure(machine.UARTConfig{
-					BaudRate: 115200,
-					TX:       machine.NoPin,
-					RX:       machine.UART_RX_PIN,
-				})
-				println("UART configured for receiver.")
-
-				servoPWMConfig := machine.PWMConfig{
-					Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY,
-				}
-				if err := pwm0.Configure(servoPWMConfig); err != nil {
-					println("could not configure PWM for servos:", err)
-					return
-				}
-				pwmCh1, err = pwm0.Channel(PWM_CH1_PIN)
-				if err != nil {
-					println("could not get PWM channel 1:", err)
-					return
-				}
-				pwm0.Set(pwmCh1, NEUTRAL_RX_VALUE)
-				pwmCh2, err = pwm0.Channel(PWM_CH2_PIN)
-				if err != nil {
-					println("could not get PWM channel 2:", err)
-					return
-				}
-				pwm0.Set(pwmCh2, NEUTRAL_RX_VALUE)
-				println("PWM channels for servos initialized.")
-
-				escPWMConfig := machine.PWMConfig{
-					Period: machine.GHz * 1 / ESC_PWM_FREQUENCY,
-				}
-				if err = pwm1.Configure(escPWMConfig); err != nil {
-					println("could not configure PWM for ESC:", err)
-					return
-				}
-				println("PWM configured for ESC.")
-				pwmCh3, err = pwm1.Channel(PWM_CH3_PIN)
-				if err != nil {
-					println("could not get PWM channel for ESC:", err)
-					return
-				}
-				pwm1.Set(pwmCh3, MIN_PULSE_WIDTH_US)
-				println("PWM configured for ESC.")
-
-				i2c.Configure(machine.I2CConfig{
-					Frequency: 400 * machine.KHz,
-				})
-				println("I2C configured for IMU.")
-
-				// --- IMU Setup ---
-				lsm = lsm6ds3tr.New(i2c)
-				err = lsm.Configure(lsm6ds3tr.Configuration{
-					AccelRange:      lsm6ds3tr.ACCEL_8G,
-					AccelSampleRate: lsm6ds3tr.ACCEL_SR_416,
-					GyroRange:       lsm6ds3tr.GYRO_1000DPS,
-					GyroSampleRate:  lsm6ds3tr.GYRO_SR_416,
-				})
-				if err != nil {
-					for {
-						println("Failed to configure LSM6DS3TR:", err.Error())
-						time.Sleep(time.Second)
-					}
-				}
-				if !lsm.Connected() {
-					println("LSM6DS3TR not connected")
-					time.Sleep(time.Second)
-					return
-				}
-				println("LSM6DS3TR initialized.")
-
-				// Calibrate gyro to find bias
-				println("Calibrating Gyro... Keep gyro still!")
-				calibrate()
-
-				// --- Filter and Controller Setup ---
-				kf = NewKalmanFilter(dt)
-				pitchPID = NewPIDController(pP, pI, pD)
-				rollPID = NewPIDController(rP, rI, rD)
-				println("Control system initialized.")
-
-				// --- Watchdog Setup ---
-				watchdog.Configure(machine.WatchdogConfig{
-					TimeoutMillis: 500, // 500ms timeout
-				})
-				watchdog.Start()
-
-				lastFlightState = flightState
-				flightState = WAITING
-
 			case WAITING:
 				// Keep outputs at neutral and ESC at zero
-				setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 				setESC(MIN_PULSE_WIDTH_US)
-
-				// Check for calibration
-				if Channels[CalibrateChannel] >= HIGH_RX_VALUE {
-					calibStartTime = time.Now()
-					lastFlightState = flightState
-					flightState = CALIBRATING
-					break
-				}
 
 				// Check for arming
 				if Channels[ArmChannel] >= HIGH_RX_VALUE {
@@ -236,30 +225,6 @@ func main() {
 					lastFlightState = flightState
 					flightState = FLIGHT_MODE
 				}
-
-			case CALIBRATING:
-				if Channels[CalibrateChannel] <= HIGH_RX_VALUE {
-					println("Calibration Aborted.")
-					lastFlightState = flightState
-					flightState = WAITING
-					break
-				}
-
-				println("Calibrating Gyro... Keep the wing still!")
-				var gyroXSum, gyroYSum float64
-				const sampleSize = 1000
-				for i := 0; i < sampleSize; i++ {
-					xG, yG, _, _ := lsm.ReadRotation()
-					gyroXSum += float64(xG)
-					gyroYSum += float64(yG)
-					time.Sleep(time.Millisecond)
-				}
-				gyroBiasX = gyroXSum / sampleSize
-				gyroBiasY = gyroYSum / sampleSize
-				println("Calibration complete!")
-
-				lastFlightState = flightState
-				flightState = WAITING
 
 			case FLIGHT_MODE:
 				// Check for disarm
@@ -280,7 +245,7 @@ func main() {
 					// Manual mode
 					leftPulse := uint32(Channels[AileronChannel])
 					rightPulse := uint32(Channels[ElevatorChannel])
-					setServoPWM(leftPulse, rightPulse)
+					setServo(leftPulse, rightPulse)
 					setESC(uint32(Channels[ThrottleChannel]))
 					break
 				}
@@ -289,7 +254,7 @@ func main() {
 				// If no valid packet received recently, set servos and ESC to safe values
 				// and skip the rest of the loop.
 				if time.Since(LastPacketTime) > 500*time.Millisecond {
-					setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+					setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 					setESC(MIN_PULSE_WIDTH_US)
 					continue // Skip the rest of the loop if no valid signal
 				}
@@ -343,7 +308,7 @@ func main() {
 				rightPulse := uint32(constrain(rightElevon, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US))
 
 				// Set the PWM signals for the servos.
-				setServoPWM(leftPulse, rightPulse)
+				setServo(leftPulse, rightPulse)
 
 				// In armed mode, set the ESC from CH3
 				if Channels[4] < HIGH_RX_VALUE { // Switch to armed mode if CH5 is high
@@ -356,13 +321,13 @@ func main() {
 				setESC(escPulse)
 
 				// // Print status and sensor data for debugging
-				println(desiredPitchRate, pitchOutput, desiredRollRate, rollOutput)
-				println()
-				println(Channels[0], Channels[1], Channels[2])
-				println(leftPulse, rightPulse)
+				// println(desiredPitchRate, pitchOutput, desiredRollRate, rollOutput)
+				// println()
+				// println(Channels[0], Channels[1]) //, Channels[2])
+				// println(leftPulse, rightPulse)
 
 			case FAILSAFE:
-				setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 				setESC(MIN_PULSE_WIDTH_US)
 
 				if time.Since(LastPacketTime).Milliseconds() <= FAILSAFE_TIMEOUT_MS {
