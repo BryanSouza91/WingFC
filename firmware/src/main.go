@@ -133,7 +133,7 @@ func main() {
 					TX:       machine.NoPin,
 					RX:       machine.UART_RX_PIN,
 				})
-				println("UART configured for iBus receiver.")
+				println("UART configured for receiver.")
 
 				servoPWMConfig := machine.PWMConfig{
 					Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY,
@@ -292,20 +292,6 @@ func main() {
 					setServoPWM(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 					setESC(MIN_PULSE_WIDTH_US)
 					continue // Skip the rest of the loop if no valid signal
-				}
-
-				// In manual mode, directly map RC inputs to servo outputs.
-				if Channels[7] < HIGH_RX_VALUE { // Switch to manual mode if CH8 is low
-					// In manual mode, directly map RC inputs to servo outputs.
-					leftPulse := uint32(Channels[0])  // CH1 to left elevon
-					rightPulse := uint32(Channels[1]) // CH2 to right elevon
-					setServoPWM(leftPulse, rightPulse)
-
-					// Set ESC from CH3
-					escPulse := uint32(Channels[2])
-					setESC(escPulse)
-
-					continue // Skip stabilization logic in manual mode
 				}
 
 				// In stabilized mode, use PID controllers to stabilize the aircraft.
