@@ -13,10 +13,33 @@ Before you begin, ensure you have the following tools installed and configured o
 
 The WingFC firmware supports multiple RC receiver protocols, specifically iBus and CRSF. Each protocol is implemented in a separate Go file (``ibus.go`` and ``crsf.go``) and uses a [Go build tag](https://www.google.com/search?q=https://pkg.go.dev/cmd/go%23hdr-Build_tags) to enable or disable its inclusion during compilation.
 
-To build the firmware for a specific protocol, you must include the corresponding build tag in the tinygo build command using the `-tags` flag.
+TinyGo allows for building and flashing through a single `flash` command
+To build the firmware for a specific protocol, you must include the corresponding build tag in the tinygo `flash` command using the `-tags` flag.
+
+## **Flash Commands**
+
+Once your Xiao nrf52840 Sense is plugged in quickly press the reset button twice to connect the bootloader. 
+The Xiao should show up as a USB device and is now ready to flash.
+Use one of the following commands to build and flash the firmware for your desired protocol.
+
+### **Flash for iBus Protocol**
+
+This command compiles the firmware with iBus protocol support enabled.
+```
+tinygo flash -target=xiao-ble -tags=ibus .
+```
+
+### **Flash for CRSF Protocol**
+
+This command compiles the firmware with CRSF protocol support enabled.
+```
+tinygo flash -target=xiao-ble -tags=crsf .
+```
+
 
 ## **Build Commands**
 
+To build the firmware for a specific protocol, you must include the corresponding build tag in the tinygo build command using the `-tags` flag.
 Use one of the following commands to build the firmware for your desired protocol.
 
 ### **Build for iBus Protocol**
