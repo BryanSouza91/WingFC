@@ -1,5 +1,7 @@
 # WingFC
 
+### Latest Version 0.2.2
+
 WingFC is a specialized open-source embedded flight controller designed specifically for the rapidly growing sub-250g flying wing FPV (First-Person-View) market. The project's core mission is to provide a reliable, user-friendly, and highly customizable solution for hobbyists and enthusiasts building ultra-lightweight Unmanned Aerial Vehicles (UAVs).
 
 The emphasis on the sub-250g weight class is a direct response to a patchwork of international regulations. Many aviation authorities worldwide, including the Federal Aviation Administration (FAA) in the U.S. and the European Union Aviation Safety Agency (EASA), have established a 250-gram weight threshold as a key regulatory distinction. UAVs below this weight are often considered a lower risk and are exempt from stricter rules, such as mandatory registration, Remote ID requirements, or more complex pilot licensing. By focusing on this market segment, WingFC enables hobbyists to build and fly FPV aircraft that can be legally operated in more places and with fewer bureaucratic hurdles, significantly lowering the barrier to entry for beginners and experienced pilots alike.
@@ -17,7 +19,6 @@ Powered by TinyGo, a Go compiler for microcontrollers, WingFC offers a robust an
 
 The flight controller is engineered for a seamless integration into FPV flying wing airframes like the ZOHD Dart 250G or Alight Wing Aeronautics Flik, a prominent model in this market. The hardware's choice of the Seeed Studio Xiao nRF52840 Sense with an onboard IMU aligns with the project's goal of creating a compact, lightweight, and high-performance control system for these specific FPV drones.
 
-### Latest Version 0.2.1
 
 ## Getting Started
 
