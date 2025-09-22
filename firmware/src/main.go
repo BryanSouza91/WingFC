@@ -10,7 +10,7 @@ import (
 )
 
 // Version of the flight controller software.
-const Version = "0.2.0"
+const Version = "0.2.1"
 
 // Global variables for hardware interfaces, controllers, and filters.
 var (
@@ -320,11 +320,11 @@ func main() {
 				escPulse := uint32(Channels[2])
 				setESC(escPulse)
 
-				// // Print status and sensor data for debugging
-				// println(desiredPitchRate, pitchOutput, desiredRollRate, rollOutput)
-				// println()
-				// println(Channels[0], Channels[1]) //, Channels[2])
-				// println(leftPulse, rightPulse)
+				// Print status and sensor data for debugging
+				println(desiredPitchRate, pitchOutput, desiredRollRate, rollOutput)
+				println()
+				println(Channels[0], Channels[1]) //, Channels[2])
+				println(leftPulse, rightPulse)
 
 			case FAILSAFE:
 				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
