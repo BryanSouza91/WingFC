@@ -15,7 +15,7 @@ Powered by TinyGo, a Go compiler for microcontrollers, WingFC offers a robust an
 
 - **Receiver Protocol Support**: Ensures broad compatibility with popular FPV communication standards, including FlySky's iBus, TBS's CRSF, and the open-source ELRS protocol, which is highly valued for its long-range capabilities and low latency in the FPV community.
 
-The flight controller is engineered for a seamless integration into FPV flying wing airframes like the ZOHD Dart 250G or AtomRC Dolphin, a prominent model in this market. The hardware's choice of the Seeed Studio Xiao nRF52840 Sense with an onboard IMU aligns with the project's goal of creating a compact, lightweight, and high-performance control system for these specific FPV drones.
+The flight controller is engineered for a seamless integration into FPV flying wing airframes like the ZOHD Dart 250G or Alight Wing Aeronatics Flik, a prominent model in this market. The hardware's choice of the Seeed Studio Xiao nRF52840 Sense with an onboard IMU aligns with the project's goal of creating a compact, lightweight, and high-performance control system for these specific FPV drones.
 
 ### Latest Version 0.2.1
 
