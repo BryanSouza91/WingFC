@@ -97,7 +97,7 @@ func main() {
 
 	// --- Hardware Setup ---
 	uart.Configure(machine.UARTConfig{
-		BaudRate: 115200,
+		BaudRate: BAUD_RATE,
 		TX:       machine.NoPin,
 		RX:       machine.UART_RX_PIN,
 	})

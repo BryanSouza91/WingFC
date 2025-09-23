@@ -9,7 +9,7 @@ package main
 // Define constants for CRSF protocol
 const (
 	// CRSF uses 0xC8 as the address for the flight controller sync byte
-	CRSF_ADDRESS_FLIGHT_CONTROLLER = 0xC8
+	CRSF_SYNC_BYTE = 0xC8
 	CRSF_FRAMETYPE_RC_CHANNELS     = 0x16
 
 	// A standard RC channels packed packet is 26 bytes long.
@@ -21,6 +21,8 @@ const (
 
 	CRSF_CHANNEL_VALUE_MIN = 172  // 987us
 	CRSF_CHANNEL_VALUE_MAX = 1811 // 2012us
+
+	BAUD_RATE = 420000
 )
 
 // Create a channel to receive CRSF packets.
@@ -49,13 +51,14 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 		data, err := uart.ReadByte()
 		if err != nil {
 			// If there's no data available, we can just continue.
+			println("No data from CRSF RX")
 			continue
 		}
 
 		switch crsfState {
 		case WAITING_FOR_HEADER1:
 			// The first byte is the device address (sync byte).
-			if data == CRSF_ADDRESS_FLIGHT_CONTROLLER {
+			if data == CRSF_SYNC_BYTE {
 				buffer[0] = data
 				packetIndex = 1
 				crsfState = READING_LENGTH

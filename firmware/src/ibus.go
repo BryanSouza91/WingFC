@@ -14,6 +14,8 @@ const (
 	IBUS_NUM_CHANNELS = NumChannels
 	// Header (2) + Channels (18 * 2) + Checksum (2)
 	IBUS_PACKET_SIZE = 2 + (IBUS_NUM_CHANNELS * 2) + 2
+
+	BAUD_RATE = 115200
 )
 
 // Create a channel to receive iBus packets.
