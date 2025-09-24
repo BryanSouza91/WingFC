@@ -48,6 +48,16 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 	var packetLength int
 
 	for {
+		// Use a non-blocking read pattern
+		// Wondering if this is the route of the problem...
+		// iBus has a packet cycle time around 7ms 
+		// I imagine CRSF has a packet cycle time around 2ms
+		// This could cause the default case in the main loop from never being reached
+		if uart.Buffered() == 0 {
+			time.Sleep(1 * time.Millisecond) // Yield to other goroutines
+			continue
+		}
+
 		data, err := uart.ReadByte()
 		if err != nil {
 			// If there's no data available, we can just continue
