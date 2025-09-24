@@ -3,6 +3,8 @@
 
 package main
 
+import "time"
+
 // CRSF (Crossfire) protocol receiver implementation
 // Used by TBS Crossfire and ExpressLRS for RC link
 
