@@ -51,7 +51,7 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 
 	for {
 		// Use a non-blocking read pattern
-		// Wondering if this is the route of the problem...
+		// Wondering if this is the root of the problem...
 		// iBus has a packet cycle time around 7ms 
 		// I imagine CRSF has a packet cycle time around 2ms
 		// This could cause the default case in the main loop from never being reached
