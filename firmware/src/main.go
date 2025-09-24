@@ -122,7 +122,7 @@ func main() {
 		return
 	}
 	setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
-	println("PWM channels for servos initialized.")
+	println("PWM configured for servos.")
 
 	escPWMConfig := machine.PWMConfig{
 		Period: machine.GHz * 1 / ESC_PWM_FREQUENCY,
@@ -164,7 +164,7 @@ func main() {
 		time.Sleep(time.Second)
 		return
 	}
-	println("LSM6DS3TR initialized.")
+	println("LSM6DS3TR configured and initialized.")
 
 	// Calibrate gyro to find bias
 	println("Initial calibration")
