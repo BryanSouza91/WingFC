@@ -32,7 +32,7 @@ var uart *mockUART
 // Define the constants and types from crsf.go and config.go
 const (
 	CRSF_PACKET_SIZE = 26
-	NumChannels      = 18
+	NumChannels      = 16
 	CRSF_SYNC_BYTE   = 0xC8
 
 	CRSF_CHANNEL_VALUE_MIN = 172  // 987us
@@ -169,7 +169,7 @@ func TestCRSFProtocol(t *testing.T) {
 		} else {
 			channels := processReceiverPacket(receivedPacket)
 			for i := range channels {
-				println("CH", i+1)
+				print("CH:", i+1, "\t")
 				println(channels[i])
 			}
 			t.Log("Successfully received and validated the CRSF packet.")
