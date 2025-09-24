@@ -50,8 +50,7 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 	for {
 		data, err := uart.ReadByte()
 		if err != nil {
-			// If there's no data available, we can just continue.
-			println("No data from CRSF RX")
+			// If there's no data available, we can just continue
 			continue
 		}
 
@@ -70,7 +69,8 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 		case READING_TYPE_AND_PAYLOAD:
 			buffer[packetIndex] = data
 			packetIndex++
-			if packetIndex >= packetLength+1 { // We've read all payload bytes, next is checksum
+			if packetIndex >= packetLength+1 { 
+				// We've read all payload bytes, next is checksum
 				crsfState = READING_CHECKSUM
 			}
 		case READING_CHECKSUM:
@@ -78,8 +78,8 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 			// Do not increment packetIndex after processing.
 			buffer[packetIndex] = data
 
-			// The CRC8 is calculated over the frame, from the length byte
-			// at index 1 to the end of the payload at packetIndex-1.
+			// The CRC8 is calculated over the frame, from after the length 
+			// byte at index 2 to the end of the payload at packetIndex.
 			calculatedChecksum := calculateCrc8(buffer[2:packetIndex])
 
 			if calculatedChecksum == data {
