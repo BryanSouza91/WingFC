@@ -1,7 +1,4 @@
-//go:build crsf
-// +build crsf
-
-package main
+package crsf
 
 // CRSF (Crossfire) protocol receiver implementation
 // Used by TBS Crossfire and ExpressLRS for RC link
