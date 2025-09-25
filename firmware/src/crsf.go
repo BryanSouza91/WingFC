@@ -58,6 +58,13 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 	}
 
 	for {
+
+		if uart.Buffered() <= CRSF_PACKET_SIZE {
+			// wait for full packet in buffer
+			// time.Sleep(time.Millisecond) // Not sure if we need to delay further if we wait for ~64 byte buffer
+			continue
+		}
+
 		b, err := uart.ReadByte()
 		if err != nil {
 			// A non-blocking read returns a timeout error. We can simply continue.
@@ -111,6 +118,8 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 			// The CRC8 is calculated over the frame, from after the length
 			// byte at index 2 to the end of the payload at packetIndex.
 			calculatedChecksum := calculateCrc8(packet[2:packetIndex])
+			// breakpoint here to check variables. specifically checksum and index and
+			//  if at all possible try to capture an entire packet here as well
 			if calculatedChecksum == b {
 				packetChan <- packet
 			} else {
