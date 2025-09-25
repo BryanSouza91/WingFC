@@ -1,9 +1,5 @@
 package main
 
-// import (
-// 	"time"
-// )
-
 // Read raw IMU data from the LSM6DS3TR sensor and apply a low-pass filter.
 func readLSMData() {
 	// Read raw sensor data from the IMU
@@ -49,8 +45,7 @@ func processLSMData() {
 // This function should be called when the aircraft is stationary and level.
 func calibrate() {
 	const sampleSize = 10000
-	// calStart := time.Now()
-	for i := 0; i < sampleSize; i++ {
+	for i := sampleSize; i > 0; i-- {
 		readLSMData()
 		accelXSum += imuData.AccelX
 		accelYSum += imuData.AccelY
@@ -58,9 +53,10 @@ func calibrate() {
 		gyroXSum += imuData.GyroX
 		gyroYSum += imuData.GyroY
 		gyroZSum += imuData.GyroZ
+		if i%1000 == 0 {
+			println(i / 1000)
+		}
 	}
-	// println("Calibration Time: ", time.Since(calStart).Seconds())
-
 	// println(accelXSum, accelYSum, accelZSum, gyroXSum, gyroYSum, gyroZSum)
 
 	accelBiasX = accelXSum / sampleSize
