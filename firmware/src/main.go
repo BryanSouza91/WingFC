@@ -181,7 +181,6 @@ func main() {
 	watchdog.Configure(machine.WatchdogConfig{
 		TimeoutMillis: 500, // 500ms timeout
 	})
-	watchdog.Start()
 
 	flightState := WAITING
 	lastFlightState = WAITING
@@ -193,14 +192,11 @@ func main() {
 	ticker := time.NewTicker(time.Duration(dt * float64(time.Second)))
 	defer ticker.Stop()
 
+	watchdog.Start()
+
 	// Main application loop using select.
 	// --- Main Loop ---
-	// Control loop at fixed intervals
-	for range ticker.C {
-
-		// Read and process IMU data every loop to have the freshest data available.
-		readLSMData()
-		processLSMData()
+	for {
 
 		select {
 		case packet := <-packetChan:
@@ -210,11 +206,17 @@ func main() {
 			// println("Received and processed a new receiver packet.")
 
 		default:
+			// Control loop at fixed intervals
+			<-ticker.C
 			// Always check for failsafe condition before the state machine logic
 			// This provides a quick response to signal loss
 			if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState != FAILSAFE && flightState != WAITING {
 				flightState = FAILSAFE
 			}
+
+			// Read and process IMU data every loop to have the freshest data available.
+			readLSMData()
+			processLSMData()
 
 			// The state machine from previous versions is now the default case
 			switch flightState {
