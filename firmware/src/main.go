@@ -10,7 +10,7 @@ import (
 )
 
 // Version of the flight controller software.
-const Version = "0.2.1"
+const Version = "0.2.3"
 
 // Global variables for hardware interfaces, controllers, and filters.
 var (
@@ -48,6 +48,7 @@ var (
 	lastFlightState flightState
 	err             error
 	calibStartTime  time.Time
+	armed           bool
 )
 
 // Define constants for sensor value conversions and PWM.
@@ -240,6 +241,7 @@ func main() {
 					lastFlightState = flightState
 					flightState = WAITING
 					break
+					// armed = false
 				}
 
 				// Handle failsafe and manual mode checks within the flight loop
@@ -295,12 +297,16 @@ func main() {
 				// Set the PWM signals for the servos.
 				setServo(leftPulse, rightPulse)
 
+				// THE NEXT FEW LINES SHOULD BE THE WAY ARMING IS HANDLED
+				// Need to add a calibration state as the initial state then move to FLIGHT_MODE
+				// Arming engages throttle control Disarming disengages throttle control
+				// Stabilization takes place regardless
 				// In armed mode, set the ESC from CH3
-				if Channels[4] < HIGH_RX_VALUE { // Switch to armed mode if CH5 is high
-					// This is disarmed mode, set ESC to minimum
-					setESC(MIN_PULSE_WIDTH_US)
-					continue // Skip ESC setting in disarmed mode
-				}
+				// if Channels[4] < HIGH_RX_VALUE { // Switch to armed mode if CH5 is high
+				// 	// This is disarmed mode, set ESC to minimum
+				// 	setESC(MIN_PULSE_WIDTH_US)
+				// 	continue // Skip ESC setting in disarmed mode
+				// }
 				// Handle ESC signal from CH3
 				escPulse := uint32(Channels[2])
 				setESC(escPulse)
