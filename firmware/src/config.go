@@ -16,11 +16,10 @@ const (
 // --- Channel Mappings ---
 
 const (
-	AileronChannel    = 0 // CH1
-	ElevatorChannel   = 1 // CH2
-	ThrottleChannel   = 2 // CH3
-	ArmChannel        = 4 // CH5
-	ManualModeChannel = 7 // CH8
+	AileronChannel  = 0 // CH1
+	ElevatorChannel = 1 // CH2
+	ThrottleChannel = 2 // CH3
+	ArmChannel      = 4 // CH5
 )
 
 // --- PWM Configuration ---

@@ -208,6 +208,7 @@ func main() {
 		default:
 			// Control loop at fixed intervals
 			<-ticker.C
+
 			// Always check for failsafe condition before the state machine logic
 			// This provides a quick response to signal loss
 			if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState != FAILSAFE && flightState != WAITING {
@@ -244,14 +245,6 @@ func main() {
 				// Handle failsafe and manual mode checks within the flight loop
 				if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS {
 					flightState = FAILSAFE
-					break
-				}
-				if Channels[ManualModeChannel] > HIGH_RX_VALUE {
-					// Manual mode
-					leftPulse := uint32(Channels[AileronChannel])
-					rightPulse := uint32(Channels[ElevatorChannel])
-					setServo(leftPulse, rightPulse)
-					setESC(uint32(Channels[ThrottleChannel]))
 					break
 				}
 
@@ -313,9 +306,9 @@ func main() {
 				setESC(escPulse)
 
 				// Print status and sensor data for debugging
-				println(desiredPitchRate, pitchOutput, desiredRollRate, rollOutput)
+				// println(desiredPitchRate, pitchOutput, desiredRollRate, rollOutput)
 				println()
-				println(Channels[0], Channels[1]) //, Channels[2])
+				println(Channels[ElevatorChannel], Channels[AileronChannel]) // , Channels[ThrottleChannel])
 				println(leftPulse, rightPulse)
 
 			case FAILSAFE:
