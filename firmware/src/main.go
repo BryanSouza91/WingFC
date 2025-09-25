@@ -98,7 +98,7 @@ func main() {
 	// --- Hardware Setup ---
 	uart.Configure(machine.UARTConfig{
 		BaudRate: BAUD_RATE,
-		TX:       machine.NoPin,
+		TX:       machine.UART_TX_PIN,
 		RX:       machine.UART_RX_PIN,
 	})
 	println("UART configured for receiver.")
@@ -189,13 +189,19 @@ func main() {
 	// Start the goroutine to read receiver packets asynchronously.
 	go readReceiver(packetChan)
 
-	interval := 10 * time.Millisecond
-	ticker := time.NewTicker(interval)
+	// ticker to run the control loop at a fixed frequency matching Kalman filter.
+	ticker := time.NewTicker(time.Duration(dt * float64(time.Second)))
 	defer ticker.Stop()
 
 	// Main application loop using select.
 	// --- Main Loop ---
-	for {
+	// Control loop at fixed intervals
+	for range ticker.C {
+
+		// Read and process IMU data every loop to have the freshest data available.
+		readLSMData()
+		processLSMData()
+
 		select {
 		case packet := <-packetChan:
 			LastPacketTime = time.Now()
@@ -204,8 +210,6 @@ func main() {
 			// println("Received and processed a new receiver packet.")
 
 		default:
-			// Control loop at fixed intervals
-			<-ticker.C
 			// Always check for failsafe condition before the state machine logic
 			// This provides a quick response to signal loss
 			if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState != FAILSAFE && flightState != WAITING {
@@ -240,7 +244,6 @@ func main() {
 					flightState = FAILSAFE
 					break
 				}
-
 				if Channels[ManualModeChannel] > HIGH_RX_VALUE {
 					// Manual mode
 					leftPulse := uint32(Channels[AileronChannel])
@@ -250,20 +253,7 @@ func main() {
 					break
 				}
 
-				// ---- Failsafe and Mode Handling ----
-				// If no valid packet received recently, set servos and ESC to safe values
-				// and skip the rest of the loop.
-				if time.Since(LastPacketTime) > 500*time.Millisecond {
-					setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
-					setESC(MIN_PULSE_WIDTH_US)
-					continue // Skip the rest of the loop if no valid signal
-				}
-
 				// In stabilized mode, use PID controllers to stabilize the aircraft.
-
-				// Read and process IMU data.
-				readLSMData()
-				processLSMData()
 
 				// Use the Kalman filter to fuse sensor data and get a stable attitude estimate.
 				kf.Predict(imuData.GyroX, imuData.GyroY)
