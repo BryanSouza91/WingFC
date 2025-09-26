@@ -61,7 +61,7 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 
 		if uart.Buffered() <= CRSF_PACKET_SIZE {
 			// wait for full packet in buffer
-			// time.Sleep(time.Millisecond) // Not sure if we need to delay further if we wait for ~64 byte buffer
+			time.Sleep(time.Millisecond) // Not sure if we need to delay further if we wait for ~64 byte buffer
 			continue
 		}
 
