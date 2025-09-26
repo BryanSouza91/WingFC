@@ -264,7 +264,7 @@ func main() {
 					desiredPitchRate = mapRange(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
 					desiredRollRate = mapRange(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
 				}
-				
+
 				// Apply deadband to avoid small unwanted movements
 				if math.Abs(desiredPitchRate) < DEADBAND*math.Pi/180 {
 					desiredPitchRate = 0
@@ -309,10 +309,12 @@ func main() {
 				}
 
 				// Print status and sensor data for debugging
+				println()
 				println(desiredPitchRate, pitchOutput, desiredRollRate, rollOutput)
 				println()
 				println(Channels[ElevatorChannel], Channels[AileronChannel]) // , Channels[ThrottleChannel])
 				println(leftPulse, rightPulse)
+				println()
 
 			case FAILSAFE:
 				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
