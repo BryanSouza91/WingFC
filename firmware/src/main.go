@@ -218,17 +218,15 @@ func main() {
 			// The state machine from previous versions is now the default case
 			switch flightState {
 			case CALIBRATION:
-				// Calibration should take place here
+				// Keep outputs at neutral and ESC at zero
+				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+				setESC(MIN_PULSE_WIDTH_US)
 
 				// Calibrate gyro to find bias
 				println("Initial calibration")
 				println("Calibrating Gyro... Keep gyro still!")
 				time.Sleep(time.Second)
 				calibrate()
-
-				// Keep outputs at neutral and ESC at zero
-				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
-				setESC(MIN_PULSE_WIDTH_US)
 
 				lastFlightState = flightState
 				flightState = FLIGHT_MODE
@@ -250,7 +248,7 @@ func main() {
 					break
 				}
 
-				// In stabilized mode, use PID controllers to stabilize the aircraft.
+				// In stabilized mode, use IMU, Kalman filter and PID controllers to stabilize the aircraft.
 
 				// Use the Kalman filter to fuse sensor data and get a stable attitude estimate.
 				kf.Predict(imuData.GyroX, imuData.GyroY)
@@ -266,6 +264,7 @@ func main() {
 					desiredPitchRate = mapRange(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
 					desiredRollRate = mapRange(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
 				}
+				
 				// Apply deadband to avoid small unwanted movements
 				if math.Abs(desiredPitchRate) < DEADBAND*math.Pi/180 {
 					desiredPitchRate = 0
