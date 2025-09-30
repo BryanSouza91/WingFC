@@ -20,6 +20,8 @@ const (
 	CRSF_CHANNEL_VALUE_MAX = 1811 // 2012us
 
 	// ELRS=420000 CRSF=416666 Radiomaster/ELRS=115200???
+	// TBS says to use 416666 as this is and has been the standard for CRSF
+	// Manufacturers have used various baud rates however
 	BAUD_RATE = 420000
 )
 
@@ -55,6 +57,7 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 	}
 
 	for {
+
 		b, err := uart.ReadByte()
 		if err != nil {
 			// A non-blocking read returns a timeout error. We can simply continue.
@@ -135,7 +138,7 @@ func processReceiverPacket(payload [CRSF_PACKET_SIZE]byte) {
 		for bitsMerged < 11 {
 			// Add a boundary check to prevent out of range access
 			if readByteIndex >= uint(len(bitstream)) {
-				return channelValues
+				Channels = channelValues
 			}
 			readByte := bitstream[readByteIndex]
 			readByteIndex++
