@@ -30,6 +30,7 @@ func (m *mockUART) WriteByte(b byte) error {
 var uart *mockUART
 
 const NumChannels = 16
+var Channels [NumChannels]uint16
 
 // --- THE ACTUAL TEST CASE ---
 
@@ -126,17 +127,17 @@ func TestCRSFProtocol(t *testing.T) {
 				if tc.expectedToSucceed {
 					// The CRC is calculated over the payload, starting from the type byte (index 2).
 					crc := calculateCrc8(receivedPacket[2 : len(receivedPacket)-1])
-					t.Log(crc, tc.packetData[len(tc.packetData)-1])
+					t.Log("Checksums:\t", crc, tc.packetData[len(tc.packetData)-1])
 				} else {
 					t.Errorf("Received an unexpected packet for a test case that should fail.")
 				}
 
 				// Check if the received packet matches the expected packet.
-				channels := processReceiverPacket(receivedPacket)
-				if channels != tc.expectedChannels {
-					t.Errorf("Received channels do not match expected channels.\nExpected: %d\nGot: %d\n", tc.expectedChannels, channels)
+				processReceiverPacket(receivedPacket)
+				if Channels != tc.expectedChannels {
+					t.Errorf("Received channels do not match expected channels.\nExpected: %d\nGot: %d\n", tc.expectedChannels, Channels)
 				}
-				t.Log("Channels:\t", channels)
+				t.Log("Channels:\t", Channels)
 			case <-time.After(10 * time.Millisecond):
 				if tc.expectedToSucceed {
 					t.Fatal("Timeout: readReceiver did not produce a packet as expected.")

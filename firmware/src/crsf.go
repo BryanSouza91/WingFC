@@ -23,6 +23,8 @@ const (
 	CRSF_CHANNEL_VALUE_MAX = 1811 // 2012us
 
 	// ELRS=420000 CRSF=416666 Radiomaster/ELRS=115200???
+	// TBS says to use 416666 as this is and has been the standard for CRSF
+	// Manufacturers have used various baud rates however
 	BAUD_RATE = 420000
 )
 
@@ -61,7 +63,7 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 
 		if uart.Buffered() <= CRSF_PACKET_SIZE {
 			// wait for full packet in buffer
-			time.Sleep(time.Millisecond) // Not sure if we need to delay further if we wait for ~64 byte buffer
+			time.Sleep(250 * time.Microsecond) // Not sure if we need to delay further if we wait for ~64 byte buffer
 			continue
 		}
 
