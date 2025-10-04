@@ -1,8 +1,24 @@
 # WingFC
 
-WingFC is an open-source embedded flight controller for fixed-wing aircraft, designed for TinyGo. It provides stabilization, mixing, and safety features for elevon-equipped models, with a focus on reliability and ease of use.
+### Latest Version 0.2.2
 
-### Latest Version 0.2.0
+WingFC is a specialized open-source embedded flight controller designed specifically for the rapidly growing sub-250g flying wing FPV (First-Person-View) market. The project's core mission is to provide a reliable, user-friendly, and highly customizable solution for hobbyists and enthusiasts building ultra-lightweight Unmanned Aerial Vehicles (UAVs).
+
+The emphasis on the sub-250g weight class is a direct response to a patchwork of international regulations. Many aviation authorities worldwide, including the Federal Aviation Administration (FAA) in the U.S. and the European Union Aviation Safety Agency (EASA), have established a 250-gram weight threshold as a key regulatory distinction. UAVs below this weight are often considered a lower risk and are exempt from stricter rules, such as mandatory registration, Remote ID requirements, or more complex pilot licensing. By focusing on this market segment, WingFC enables hobbyists to build and fly FPV aircraft that can be legally operated in more places and with fewer bureaucratic hurdles, significantly lowering the barrier to entry for beginners and experienced pilots alike.
+
+
+Powered by TinyGo, a Go compiler for microcontrollers, WingFC offers a robust and stable software platform. The project provides essential flight control features for elevon-equipped fixed-wing aircraft, including:
+
+- **Stabilization Modes**: Offers flight stabilization to assist pilots, particularly for smooth, cinematic FPV footage and relaxed cruising.
+
+- **Mixing**: Handles the complex mixing of aileron and elevator inputs for a fixed-wing flying wing platform, simplifying the aircraft's setup.
+
+- **Safety Features**: Incorporates failsafe mechanisms to protect the aircraft and others in the event of signal loss.
+
+- **Receiver Protocol Support**: Ensures broad compatibility with popular FPV communication standards, including FlySky's iBus, TBS's CRSF, and the open-source ELRS protocol, which is highly valued for its long-range capabilities and low latency in the FPV community.
+
+The flight controller is engineered for a seamless integration into FPV flying wing airframes like the ZOHD Dart 250G or Alight Wing Aeronautics Flik, a prominent model in this market. The hardware's choice of the Seeed Studio Xiao nRF52840 Sense with an onboard IMU aligns with the project's goal of creating a compact, lightweight, and high-performance control system for these specific FPV drones.
+
 
 ## Getting Started
 
@@ -19,7 +35,7 @@ What things you need to install the software and how to install them
 
 ### Installing
 
-[Download source code](https://github.com/BryanSouza91/WingFC/releases/tag/v0.2.0)
+[Download source code](https://github.com/BryanSouza91/WingFC/releases/tag/v0.2.1)
 Extract source code then navigate to the top directory of the source.
 ```
 cd firmware/src
@@ -30,28 +46,7 @@ Plug in WingFC board via USB-C
 When the filesystem shows up on your computer, flash firmware to your board
 
 ```
-tinygo flash -target=xiao-ble 
-```
-
-## Running the tests
-
-Explain how to run the automated tests for this system
-
-### Break down into end to end tests
-
-Explain what these tests test and why
-
-```
-go test ./...
-```
-
-### And coding style tests
-
-Explain what these tests test and why
-
-```
-go vet
-golint
+tinygo flash -target=xiao-ble -tags=<ibus,crsf> firmware/src
 ```
 
 ## Deployment

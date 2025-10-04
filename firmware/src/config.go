@@ -20,16 +20,17 @@ const (
 	ElevatorChannel   = 1 // CH2
 	ThrottleChannel   = 2 // CH3
 	ArmChannel        = 4 // CH5
-	CalibrateChannel  = 5 // CH6
-	ManualModeChannel = 6 // CH7
+	ManualModeChannel = 7 // CH8
 )
 
 // --- PWM Configuration ---
 const (
-	// Standard servo frequency (Hz)
+	// Analog servo frequency 50Hz
+	// Digital servo frequency 100Hz 250Hz 333Hz etc.
 	SERVO_PWM_FREQUENCY = 50
 
-	// ESC frequency (Hz)
+	// ESC frequency set at analog servo frequency 50Hz
+	// another common ESC frequency is 400Hz
 	ESC_PWM_FREQUENCY = 50
 
 	// Deadband around neutral for stick input

@@ -14,6 +14,8 @@ const (
 	IBUS_NUM_CHANNELS = NumChannels
 	// Header (2) + Channels (18 * 2) + Checksum (2)
 	IBUS_PACKET_SIZE = 2 + (IBUS_NUM_CHANNELS * 2) + 2
+
+	BAUD_RATE = 115200
 )
 
 // Create a channel to receive iBus packets.
@@ -30,7 +32,7 @@ const (
 	READING_CHECKSUM_HIGH
 )
 
-// readReceiver is a goroutine that reads iBus packets from the UART and sends them to a channel.
+// readIBus is a goroutine that reads iBus packets from the UART and sends them to a channel.
 // This function uses a state machine to ensure a complete packet is received before
 // being sent over the channel.
 func readReceiver(packetChan chan<- [IBUS_PACKET_SIZE]byte) {
