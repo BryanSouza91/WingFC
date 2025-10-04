@@ -1,4 +1,4 @@
-24736392838558072
+24738149332167222
 Audio_Module
 Reverb_BTDR-1H
 Digital Reverberation Unit, http://www.belton.co.kr/inc/downfile.php?seq=17&file=pdf (footprint from http://www.uk-electronic.de/PDF/BTDR-1.pdf)
@@ -64644,6 +64644,13 @@ solder jumper open
 0
 3
 3
+KiCAD
+XIAO-nRF52840-Plus-SMD
+
+
+0
+29
+29
 LED_SMD
 LED-APA102-2020
 http://www.led-color.com/upload/201604/APA102-2020%20SMD%20LED.pdf
