@@ -3,6 +3,10 @@
 
 package main
 
+import (
+	"time"
+)
+
 // CRSF (Crossfire) protocol receiver implementation
 // Used by TBS Crossfire and ExpressLRS for RC link
 
@@ -31,7 +35,7 @@ const (
 // --- CRSF Receiver Logic ---
 
 // Create a channel to receive CRSF packets.
-var packetChan = make(chan [CRSF_PACKET_SIZE]byte)
+var packetChan = make(chan [CRSF_PACKET_SIZE]byte, 10) // Buffered channel to prevent blocking
 
 // CRSF State Machine States
 type CRSFState int
@@ -134,7 +138,7 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 
 // processReceiverPacket unpacks the 11-bit channel values from a CRSF packet payload.
 // This function is based on the robust bit-packing logic from BetaFlight.
-func processReceiverPacket(payload [CRSF_PACKET_SIZE]byte) {
+func processReceiverPacket(payload [CRSF_PACKET_SIZE]byte) [NumChannels]uint16 {
 	// The RC channel data starts at byte 3 of the packet
 	const payloadStartIndex = 3
 	// The payload is from index 3 to the checksum byte's index (25) - 1
@@ -149,7 +153,7 @@ func processReceiverPacket(payload [CRSF_PACKET_SIZE]byte) {
 		for bitsMerged < 11 {
 			// Add a boundary check to prevent out of range access
 			if readByteIndex >= uint(len(bitstream)) {
-				Channels = channelValues
+				return channelValues
 			}
 			readByte := bitstream[readByteIndex]
 			readByteIndex++
@@ -160,7 +164,7 @@ func processReceiverPacket(payload [CRSF_PACKET_SIZE]byte) {
 		readValue >>= 11
 		bitsMerged -= 11
 	}
-	Channels = channelValues
+	return channelValues
 }
 
 // calculateCrc8 computes the CRC8 checksum for a CRSF packet.
