@@ -198,7 +198,7 @@ func main() {
 		case packet := <-packetChan:
 			LastPacketTime = time.Now()
 			// A complete packet has been received.
-			processReceiverPacket(packet)
+			Channels = processReceiverPacket(packet)
 			// println("Received and processed a new receiver packet.")
 
 		default:
