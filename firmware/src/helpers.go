@@ -13,20 +13,12 @@ func readLSMData() {
 	}
 
 	// Low-pass filter
-	imuData.AccelX = imuData.AccelX*LPF_ALPHA + float64(rawAccelX)*microGToMS2*LPF_ALPHA
-	imuData.AccelY = imuData.AccelY*LPF_ALPHA + float64(rawAccelY)*microGToMS2*LPF_ALPHA
-	imuData.AccelZ = imuData.AccelZ*LPF_ALPHA + float64(rawAccelZ)*microGToMS2*LPF_ALPHA
-	imuData.GyroX = imuData.GyroX*LPF_ALPHA + float64(rawGyroX)*microDPSToRadS*LPF_ALPHA
-	imuData.GyroY = imuData.GyroY*LPF_ALPHA + float64(rawGyroY)*microDPSToRadS*LPF_ALPHA
-	imuData.GyroZ = imuData.GyroZ*LPF_ALPHA + float64(rawGyroZ)*microDPSToRadS*LPF_ALPHA
-
-	// Convert raw sensor readings to standard units (rad/s and m/s^2)
-	imuData.AccelX = float64(rawAccelX) * microGToMS2
-	imuData.AccelY = float64(rawAccelY) * microGToMS2
-	imuData.AccelZ = float64(rawAccelZ) * microGToMS2
-	imuData.GyroX = float64(rawGyroX) * microDPSToRadS
-	imuData.GyroY = float64(rawGyroY) * microDPSToRadS
-	imuData.GyroZ = float64(rawGyroZ) * microDPSToRadS
+	imuData.AccelX += LPF_ALPHA * (float64(rawAccelX) * microGToMS2 - imuData.AccelX)
+	imuData.AccelY += LPF_ALPHA * (float64(rawAccelY) * microGToMS2 - imuData.AccelY)
+	imuData.AccelZ += LPF_ALPHA * (float64(rawAccelZ) * microGToMS2 - imuData.AccelZ)
+	imuData.GyroX += LPF_ALPHA * (float64(rawGyroX) * microDPSToRadS - imuData.GyroX)
+	imuData.GyroY += LPF_ALPHA * (float64(rawGyroY) * microDPSToRadS - imuData.GyroY)
+	imuData.GyroZ += LPF_ALPHA * (float64(rawGyroZ) * microDPSToRadS - imuData.GyroZ)
 }
 
 // Process the raw IMU data by applying calibration offsets and computing roll/pitch angles.
@@ -59,13 +51,13 @@ func calibrate() {
 	}
 	// println(accelXSum, accelYSum, accelZSum, gyroXSum, gyroYSum, gyroZSum)
 
-	accelBiasX = accelXSum / sampleSize
-	accelBiasY = accelYSum / sampleSize
-	accelBiasZ = accelZSum / sampleSize
+	accelBiasX = (accelXSum / sampleSize) * microGToMS2
+	accelBiasY = (accelYSum / sampleSize) * microGToMS2
+	accelBiasZ = (accelZSum / sampleSize) * microGToMS2
 	println("Accel calibration complete. Bias X:", accelBiasX, "Bias Y:", accelBiasY, "Bias Z:", accelBiasZ)
-	gyroBiasX = gyroXSum / sampleSize
-	gyroBiasY = gyroYSum / sampleSize
-	gyroBiasZ = gyroZSum / sampleSize
+	gyroBiasX = (gyroXSum / sampleSize) * microDPSToRadS
+	gyroBiasY = (gyroYSum / sampleSize) * microDPSToRadS
+	gyroBiasZ = (gyroZSum / sampleSize) * microDPSToRadS
 	println("Gyro calibration complete. Bias X:", gyroBiasX, "Bias Y:", gyroBiasY, "Bias Z:", gyroBiasZ)
 }
 
