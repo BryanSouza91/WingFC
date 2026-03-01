@@ -28,7 +28,7 @@ const (
 // --- CRSF Receiver Logic ---
 
 // Create a channel to receive CRSF packets.
-var packetChan = make(chan [CRSF_PACKET_SIZE]byte)
+var packetChan = make(chan [CRSF_PACKET_SIZE]byte, 10) // Buffered channel to prevent blocking
 
 // CRSF State Machine States
 type CRSFState int
