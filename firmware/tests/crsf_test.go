@@ -1,4 +1,4 @@
-package main
+package crsf
 
 import (
 	"testing"
@@ -29,183 +29,122 @@ func (m *mockUART) WriteByte(b byte) error {
 // Override the global uart variable for testing.
 var uart *mockUART
 
-// Define the constants and types from crsf.go and config.go
-const (
-	CRSF_PACKET_SIZE = 26
-	NumChannels      = 16
-	CRSF_SYNC_BYTE   = 0xC8
-
-	CRSF_CHANNEL_VALUE_MIN = 172  // 987us
-	CRSF_CHANNEL_VALUE_MAX = 1811 // 2012us
-	MIN_RX_VALUE           = 988
-	MAX_RX_VALUE           = 2012
-)
-
-type CRSFState int
-
-const (
-	WAITING_FOR_HEADER1 CRSFState = iota
-	READING_LENGTH
-	READING_TYPE_AND_PAYLOAD
-	READING_CHECKSUM
-)
-
-// A simplified, test-only version of the global channel
-var packetChan = make(chan [CRSF_PACKET_SIZE]byte)
-
-// Define a simplified version of calculateCrc8 for the test file.
-func calculateCrc8(data []byte) byte {
-	crc := byte(0x00)
-	for _, b := range data {
-		crc ^= b
-		for i := 0; i < 8; i++ {
-			if (crc & 0x80) != 0 {
-				crc = (crc << 1) ^ 0xD5
-			} else {
-				crc = crc << 1
-			}
-		}
-	}
-	return crc
-}
-
-// --- TEST THE readReceiver FUNCTION ---
-
-// We need to include a simplified version of readReceiver to be tested.
-func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
-	var crsfState CRSFState
-	var packetIndex int
-	var buffer [CRSF_PACKET_SIZE]byte
-	var packetLength int
-
-	for {
-		data, err := uart.ReadByte()
-		if err != nil {
-			// If there's no data available, we can just continue.
-			println("No data from CRSF RX")
-			continue
-		}
-
-		switch crsfState {
-		case WAITING_FOR_HEADER1:
-			if data == CRSF_SYNC_BYTE {
-				crsfState = READING_LENGTH
-				packetIndex = 1
-				buffer[0] = data
-			}
-		case READING_LENGTH:
-			packetLength = int(data)
-			buffer[1] = data
-			packetIndex = 2
-			crsfState = READING_TYPE_AND_PAYLOAD
-		case READING_TYPE_AND_PAYLOAD:
-			buffer[packetIndex] = data
-			packetIndex++
-			if packetIndex >= packetLength+1 { // We've read all payload bytes, next is checksum
-				crsfState = READING_CHECKSUM
-			}
-		case READING_CHECKSUM:
-			// The checksum byte is the last byte in the packet, at index 25.
-			// Do not increment packetIndex after processing.
-			buffer[packetIndex] = data
-
-			// The CRC8 is calculated over the frame, from the length byte
-			// at index 1 to the end of the payload at packetIndex-1.
-			calculatedChecksum := calculateCrc8(buffer[2:packetIndex])
-
-			if calculatedChecksum == data {
-				packetChan <- buffer
-			} else {
-				println("Checksum mismatch. Discarding packet.")
-			}
-
-			// Reset the state machine for the next packet.
-			crsfState = WAITING_FOR_HEADER1
-			packetIndex = 0
-		}
-	}
-}
+const NumChannels = 16
+var Channels [NumChannels]uint16
 
 // --- THE ACTUAL TEST CASE ---
 
+// TestCRSFProtocol runs a suite of tests on the readReceiver function with a variety of packet data.
 func TestCRSFProtocol(t *testing.T) {
-	// Create a mock UART and a channel to feed data.
-	mockUart := &mockUART{
-		dataChan: make(chan byte, CRSF_PACKET_SIZE),
+	// Define the test cases in a slice of structs.
+	testCases := []struct {
+		name              string
+		packetData        []byte
+		expectedToSucceed bool
+		expectedChannels  [NumChannels]uint16
+	}{
+		{
+			name: "Valid RC Channels Packet 1 (Centered)",
+			packetData: []byte{
+				0xc8, 0x18, 0x16, 0xe0, 0x03, 0x1f, 0xf8, 0xc0, 0x07, 0x3e, 0xf0, 0x81, 0x0f, 0x7c,
+				0xe0, 0x03, 0x1f, 0xf8, 0xc0, 0x07, 0x3e, 0xf0, 0x81, 0x0f, 0x7c, 0xad,
+			},
+			expectedToSucceed: true,
+			expectedChannels:  [NumChannels]uint16{992, 992, 992, 992, 992, 992, 992, 992, 992, 992, 992, 992, 992, 992, 992, 992},
+		},
+		{
+			name: "Valid RC Channels Packet 2 (Random Values)",
+			packetData: []byte{
+				0xC8, 0x18, 0x16, 0xE0, 0x03, 0x9F, 0x2B, 0xC0, 0xF7, 0x8B, 0x5F, 0xFC, 0xE2, 0x17,
+				0xBF, 0xF8, 0x85, 0xE6, 0x5C, 0x03, 0x00, 0x00, 0x4C, 0x3C, 0xD7, 0xBD,
+			},
+			expectedToSucceed: true,
+			expectedChannels:  [NumChannels]uint16{992, 992, 174, 992, 191, 191, 191, 191, 191, 191, 922, 430, 0, 0, 1811, 1721},
+		},
+		{
+			name: "Valid RC Channels Packet 3 (Random Values)",
+			packetData: []byte{
+				0xC8, // Address
+				0x18, // Length
+				0x16, // Type (RC Channels)
+				0x03, 0x1F, 0x58, 0xC0, 0x07, 0x16, 0xB0, 0x80, 0x05, 0x2C, 0x60, 0x01, 0x0B, 0xF8, 0xC0,
+				0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 252, // Packet
+				0x42, // Crc
+			},
+			expectedToSucceed: true,
+			expectedChannels:  [NumChannels]uint16{1795, 771, 1793, 771, 769, 769, 769, 769, 769, 1793, 1795, 3, 0, 0, 0, 2016},
+		},
+		{
+			name: "Valid RC Channels Packet 4 (Random Values)",
+			packetData: []byte{
+				0xC8, 12, 0x14, 16, 19, 99, 151, 1, 2, 3, 8, 88, 148, 252, 0xC8, 24, 0x16, 0xE0, 0x03,
+				0x1F, 0x58, 0xC0, 0x07, 0x16, 0xB0, 0x80, 0x05, 0x2C, 0x60, 0x01, 0x0B, 0xF8, 0xC0,
+				0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 103,
+			},
+			expectedToSucceed: true,
+			expectedChannels:  [NumChannels]uint16{992, 992, 352, 992, 352, 352, 352, 352, 352, 352, 992, 992, 0, 0, 0, 0},
+		},
+		{
+			name: "Invalid Checksum Packet 1",
+			packetData: []byte{
+				0xC8, 0x18, 0x16, 0xAE, 0x70, 0x85, 0x2B, 0x68, 0xF1, 0x8B, 0x9F, 0xFC, 0xE2, 0x17,
+				0x7F, 0xF8, 0x05, 0xF8, 0x28, 0x08, 0x00, 0x00, 0x4C, 0x7C, 0xE2, 0x63, // Incorrect CRC
+			},
+			expectedToSucceed: false, // The CRC is wrong, so the packet should be dropped.
+		},
+		{
+			name: "Invalid Checksum Packet 2",
+			packetData: []byte{
+				0xC8, 0x18, 0x16, 0xC0, 0x03, 0x9F, 0x2B, 0x80, 0xF7, 0x8B, 0x5F, 0x94, 0x0F, 0xC0,
+				0x7F, 0x48, 0x4A, 0xF9, 0xCA, 0x07, 0x00, 0x00, 0x4C, 0x7C, 0xE2, 0x09, // Incorrect CRC
+			},
+			expectedToSucceed: false, // The CRC is wrong, so the packet should be dropped.
+		},
 	}
 
-	// Override the global uart variable with our mock for the test.
-	uart = mockUart
-
-	// Create the packet channel for the receiver to send its output to.
-	testPacketChan := make(chan [CRSF_PACKET_SIZE]byte, 1)
-
-	// A valid CRSF packet to test with.
-	// This packet has a length of 24 (0x18), type of 22 (0x16), 22 payload bytes, and CRC of 173 (0xad)
-	// The full packet is 1(sync) + 1(length) + 1(type) + 22(payload) + 1(crc) = 26 bytes.
-	packetData := []byte{
-		0xc8, 0x18, 0x16, 0xe0, 0x03, 0x1f, 0xf8, 0xc0, 0x07, 0x3e, 0xf0, 0x81, 0x0f, 0x7c,
-		0xe0, 0x03, 0x1f, 0xf8, 0xc0, 0x07, 0x3e, 0xf0, 0x81, 0x0f, 0x7c, 0xad,
-	}
-
-	// Run the readReceiver function in a goroutine.
-	go readReceiver(testPacketChan)
-
-	// Feed the packet data byte by byte to the mock UART.
-	for _, b := range packetData {
-		mockUart.dataChan <- b
-	}
-
-	// Wait for a packet to be received from the receiver.
-	select {
-	case receivedPacket := <-testPacketChan:
-		// Convert the byte slice to a fixed-size array for comparison.
-		expectedPacket := [CRSF_PACKET_SIZE]byte{}
-		copy(expectedPacket[:], packetData)
-
-		// Check if the received packet matches the expected packet.
-		if receivedPacket != expectedPacket {
-			t.Errorf("Received packet does not match expected packet.\nExpected: %x\nGot: %x\n", expectedPacket, receivedPacket)
-		} else {
-			channels := processReceiverPacket(receivedPacket)
-			for i := range channels {
-				print("CH:", i+1, "\t")
-				println(channels[i])
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a new mock UART and a channel for each test case.
+			mockUart := &mockUART{
+				dataChan: make(chan byte, CRSF_PACKET_SIZE),
 			}
-			t.Log("Successfully received and validated the CRSF packet.")
-		}
-	case <-time.After(50 * time.Millisecond):
-		t.Fatal("Timeout: readReceiver did not produce a packet.")
-	}
-}
 
-// processReceiverPacket unpacks the 11-bit channel values from a CRSF packet payload.
-// This function is based on the robust bit-packing logic from BetaFlight.
-func processReceiverPacket(payload [CRSF_PACKET_SIZE]byte) [NumChannels]uint16 {
-	// The RC channel data starts at byte 3 of the packet
-	const payloadStartIndex = 3
-	// The payload is from index 3 to the checksum byte's index (25) - 1
-	bitstream := payload[payloadStartIndex : CRSF_PACKET_SIZE-1]
+			uart = mockUart
+			testPacketChan := make(chan [CRSF_PACKET_SIZE]byte, 1)
 
-	var channelValues [NumChannels]uint16
-	var bitsMerged uint
-	var readValue uint32
-	var readByteIndex uint
+			// Start the receiver goroutine.
+			go readReceiver(testPacketChan)
 
-	for n := 0; n < NumChannels; n++ {
-		for bitsMerged < 11 {
-			// Add a boundary check to prevent out of range access
-			if readByteIndex >= uint(len(bitstream)) {
-				return channelValues
+			// Feed the packet data byte by byte to the mock UART.
+			for _, b := range tc.packetData {
+				mockUart.dataChan <- b
 			}
-			readByte := bitstream[readByteIndex]
-			readByteIndex++
-			readValue |= uint32(readByte) << bitsMerged
-			bitsMerged += 8
-		}
-		channelValues[n] = uint16(readValue & 0x07FF)
-		readValue >>= 11
-		bitsMerged -= 11
+
+			// Wait for a packet to be received from the receiver.
+			select {
+			case receivedPacket := <-testPacketChan:
+				// Add the correct checksum to the packetData if it's expected to succeed.
+				if tc.expectedToSucceed {
+					// The CRC is calculated over the payload, starting from the type byte (index 2).
+					crc := calculateCrc8(receivedPacket[2 : len(receivedPacket)-1])
+					t.Log("Checksums:\t", crc, tc.packetData[len(tc.packetData)-1])
+				} else {
+					t.Errorf("Received an unexpected packet for a test case that should fail.")
+				}
+
+				// Check if the received packet matches the expected packet.
+				processReceiverPacket(receivedPacket)
+				if Channels != tc.expectedChannels {
+					t.Errorf("Received channels do not match expected channels.\nExpected: %d\nGot: %d\n", tc.expectedChannels, Channels)
+				}
+				t.Log("Channels:\t", Channels)
+			case <-time.After(10 * time.Millisecond):
+				if tc.expectedToSucceed {
+					t.Fatal("Timeout: readReceiver did not produce a packet as expected.")
+				} else {
+					t.Log("Successfully timed out, as expected for an invalid packet.")
+				}
+			}
+		})
 	}
-	return channelValues
 }

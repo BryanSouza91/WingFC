@@ -10,7 +10,7 @@ import (
 )
 
 // Version of the flight controller software.
-const Version = "0.2.1"
+const Version = "0.2.3"
 
 // Global variables for hardware interfaces, controllers, and filters.
 var (
@@ -44,10 +44,11 @@ var (
 
 	// RC Channels
 	Channels        [NumChannels]uint16
-	LastPacketTime  time.Time
 	lastFlightState flightState
-	err             error
+	LastPacketTime  time.Time
 	calibStartTime  time.Time
+	armed           bool
+	err             error
 )
 
 // Define constants for sensor value conversions and PWM.
@@ -78,7 +79,7 @@ const (
 	FAILSAFE_TIMEOUT_MS = 500
 
 	// State machine states
-	WAITING flightState = iota
+	CALIBRATION flightState = iota
 	FLIGHT_MODE
 	FAILSAFE
 )
@@ -98,7 +99,7 @@ func main() {
 	// --- Hardware Setup ---
 	uart.Configure(machine.UARTConfig{
 		BaudRate: BAUD_RATE,
-		TX:       machine.NoPin,
+		TX:       machine.UART_TX_PIN,
 		RX:       machine.UART_RX_PIN,
 	})
 	println("UART configured for receiver.")
@@ -166,11 +167,6 @@ func main() {
 	}
 	println("LSM6DS3TR configured and initialized.")
 
-	// Calibrate gyro to find bias
-	println("Initial calibration")
-	println("Calibrating Gyro... Keep gyro still!")
-	calibrate()
-
 	// --- Filter and Controller Setup ---
 	kf = NewKalmanFilter(dt)
 	pitchPID = NewPIDController(pP, pI, pD)
@@ -179,60 +175,71 @@ func main() {
 
 	// --- Watchdog Setup ---
 	watchdog.Configure(machine.WatchdogConfig{
-		TimeoutMillis: 500, // 500ms timeout
+		TimeoutMillis: 1000, // 1s timeout
 	})
-	watchdog.Start()
 
-	flightState := WAITING
-	lastFlightState = WAITING
+	flightState := CALIBRATION
+	lastFlightState = CALIBRATION
 
 	// Start the goroutine to read receiver packets asynchronously.
 	go readReceiver(packetChan)
 
-	interval := 10 * time.Millisecond
-	ticker := time.NewTicker(interval)
+	// ticker to run the control loop at a fixed frequency matching Kalman filter.
+	ticker := time.NewTicker(time.Duration(dt * float64(time.Second)))
 	defer ticker.Stop()
+
+	watchdog.Start()
 
 	// Main application loop using select.
 	// --- Main Loop ---
 	for {
+
 		select {
 		case packet := <-packetChan:
 			LastPacketTime = time.Now()
 			// A complete packet has been received.
-			processReceiverPacket(packet)
+			Channels = processReceiverPacket(packet)
 			// println("Received and processed a new receiver packet.")
 
 		default:
 			// Control loop at fixed intervals
 			<-ticker.C
+
 			// Always check for failsafe condition before the state machine logic
 			// This provides a quick response to signal loss
-			if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState != FAILSAFE && flightState != WAITING {
+			if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState != FAILSAFE {
 				flightState = FAILSAFE
 			}
 
+			// Read and process IMU data every loop to have the freshest data available.
+			readLSMData()
+			processLSMData()
+
 			// The state machine from previous versions is now the default case
 			switch flightState {
-			case WAITING:
+			case CALIBRATION:
 				// Keep outputs at neutral and ESC at zero
 				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 				setESC(MIN_PULSE_WIDTH_US)
 
-				// Check for arming
-				if Channels[ArmChannel] >= HIGH_RX_VALUE {
-					println("Armed!")
-					lastFlightState = flightState
-					flightState = FLIGHT_MODE
-				}
+				// Calibrate gyro to find bias
+				println("Initial calibration")
+				println("Calibrating Gyro... Keep gyro still!")
+				time.Sleep(time.Second)
+				calibrate()
+
+				lastFlightState = flightState
+				flightState = FLIGHT_MODE
 
 			case FLIGHT_MODE:
-				// Check for disarm
+				// Switch to armed mode if CH5 is high
+				// Check for arm/disarm first every loop
 				if Channels[ArmChannel] <= HIGH_RX_VALUE {
 					println("Disarmed.")
-					lastFlightState = flightState
-					flightState = WAITING
-					break
+					armed = false
+				} else {
+					println("Armed!")
+					armed = true
 				}
 
 				// Handle failsafe and manual mode checks within the flight loop
@@ -241,44 +248,23 @@ func main() {
 					break
 				}
 
-				if Channels[ManualModeChannel] > HIGH_RX_VALUE {
-					// Manual mode
-					leftPulse := uint32(Channels[AileronChannel])
-					rightPulse := uint32(Channels[ElevatorChannel])
-					setServo(leftPulse, rightPulse)
-					setESC(uint32(Channels[ThrottleChannel]))
-					break
-				}
-
-				// ---- Failsafe and Mode Handling ----
-				// If no valid packet received recently, set servos and ESC to safe values
-				// and skip the rest of the loop.
-				if time.Since(LastPacketTime) > 500*time.Millisecond {
-					setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
-					setESC(MIN_PULSE_WIDTH_US)
-					continue // Skip the rest of the loop if no valid signal
-				}
-
-				// In stabilized mode, use PID controllers to stabilize the aircraft.
-
-				// Read and process IMU data.
-				readLSMData()
-				processLSMData()
+				// In stabilized mode, use IMU, Kalman filter and PID controllers to stabilize the aircraft.
 
 				// Use the Kalman filter to fuse sensor data and get a stable attitude estimate.
 				kf.Predict(imuData.GyroX, imuData.GyroY)
 				kf.Update(imuData.Pitch, imuData.Roll)
 
 				// In armed mode, use RC inputs to set desired rates.
-				if Channels[4] < HIGH_RX_VALUE { // Switch to armed mode if CH5 is high
+				if armed {
+					// Get desired roll and pitch rates from the RC receiver.
+					desiredPitchRate = mapRange(float64(Channels[ElevatorChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
+					desiredRollRate = mapRange(float64(Channels[AileronChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
+				} else {
 					// This is disarmed mode, set desired rates to zero
 					desiredPitchRate = mapRange(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
 					desiredRollRate = mapRange(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
-				} else {
-					// Get desired roll and pitch rates from the RC receiver.
-					desiredPitchRate = mapRange(float64(Channels[1]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
-					desiredRollRate = mapRange(float64(Channels[0]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
 				}
+
 				// Apply deadband to avoid small unwanted movements
 				if math.Abs(desiredPitchRate) < DEADBAND*math.Pi/180 {
 					desiredPitchRate = 0
@@ -310,21 +296,25 @@ func main() {
 				// Set the PWM signals for the servos.
 				setServo(leftPulse, rightPulse)
 
-				// In armed mode, set the ESC from CH3
-				if Channels[4] < HIGH_RX_VALUE { // Switch to armed mode if CH5 is high
+				// Arming engages throttle control Disarming disengages throttle control
+				// Stabilization takes place regardless
+				// In armed mode, set the ESC from ThrottleChannel
+				if armed {
+					// Handle ESC signal from ThrottleChannel
+					escPulse := uint32(Channels[ThrottleChannel])
+					setESC(escPulse)
+				} else {
 					// This is disarmed mode, set ESC to minimum
 					setESC(MIN_PULSE_WIDTH_US)
-					continue // Skip ESC setting in disarmed mode
 				}
-				// Handle ESC signal from CH3
-				escPulse := uint32(Channels[2])
-				setESC(escPulse)
 
 				// Print status and sensor data for debugging
+				println()
 				println(desiredPitchRate, pitchOutput, desiredRollRate, rollOutput)
 				println()
-				println(Channels[0], Channels[1]) //, Channels[2])
+				println(Channels[ElevatorChannel], Channels[AileronChannel]) // , Channels[ThrottleChannel])
 				println(leftPulse, rightPulse)
+				println()
 
 			case FAILSAFE:
 				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
@@ -332,7 +322,7 @@ func main() {
 
 				if time.Since(LastPacketTime).Milliseconds() <= FAILSAFE_TIMEOUT_MS {
 					lastFlightState = flightState
-					flightState = WAITING
+					flightState = FLIGHT_MODE
 				}
 			}
 

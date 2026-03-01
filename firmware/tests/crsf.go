@@ -1,11 +1,4 @@
-//go:build crsf
-// +build crsf
-
-package main
-
-import (
-	"time"
-)
+package crsf
 
 // CRSF (Crossfire) protocol receiver implementation
 // Used by TBS Crossfire and ExpressLRS for RC link
@@ -65,12 +58,6 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 
 	for {
 
-		if uart.Buffered() <= CRSF_PACKET_SIZE {
-			// wait for full packet in buffer
-			time.Sleep(250 * time.Microsecond) // Not sure if we need to delay further if we wait for ~64 byte buffer
-			continue
-		}
-
 		b, err := uart.ReadByte()
 		if err != nil {
 			// A non-blocking read returns a timeout error. We can simply continue.
@@ -124,8 +111,6 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 			// The CRC8 is calculated over the frame, from after the length
 			// byte at index 2 to the end of the payload at packetIndex.
 			calculatedChecksum := calculateCrc8(packet[2:packetIndex])
-			// breakpoint here to check variables. specifically checksum and index and
-			//  if at all possible try to capture an entire packet here as well
 			if calculatedChecksum == b {
 				packetChan <- packet
 			} else {
@@ -138,7 +123,7 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 
 // processReceiverPacket unpacks the 11-bit channel values from a CRSF packet payload.
 // This function is based on the robust bit-packing logic from BetaFlight.
-func processReceiverPacket(payload [CRSF_PACKET_SIZE]byte) [NumChannels]uint16 {
+func processReceiverPacket(payload [CRSF_PACKET_SIZE]byte) {
 	// The RC channel data starts at byte 3 of the packet
 	const payloadStartIndex = 3
 	// The payload is from index 3 to the checksum byte's index (25) - 1
@@ -153,7 +138,7 @@ func processReceiverPacket(payload [CRSF_PACKET_SIZE]byte) [NumChannels]uint16 {
 		for bitsMerged < 11 {
 			// Add a boundary check to prevent out of range access
 			if readByteIndex >= uint(len(bitstream)) {
-				return channelValues
+				Channels = channelValues
 			}
 			readByte := bitstream[readByteIndex]
 			readByteIndex++
@@ -164,7 +149,7 @@ func processReceiverPacket(payload [CRSF_PACKET_SIZE]byte) [NumChannels]uint16 {
 		readValue >>= 11
 		bitsMerged -= 11
 	}
-	return channelValues
+	Channels = channelValues
 }
 
 // calculateCrc8 computes the CRC8 checksum for a CRSF packet.

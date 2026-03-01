@@ -19,7 +19,7 @@ const (
 )
 
 // Create a channel to receive iBus packets.
-var packetChan = make(chan [IBUS_PACKET_SIZE]byte)
+var packetChan = make(chan [IBUS_PACKET_SIZE]byte, 10) // Buffered channel to prevent blocking
 
 // iBus State Machine States
 type IBusState int
@@ -85,9 +85,11 @@ func readReceiver(packetChan chan<- [IBUS_PACKET_SIZE]byte) {
 }
 
 // Helper function to process the iBus packet and update the global Channels array.
-func processReceiverPacket(packet [IBUS_PACKET_SIZE]byte) {
+func processReceiverPacket(packet [IBUS_PACKET_SIZE]byte) [NumChannels]uint16 {
+	var channelValues [NumChannels]uint16
 	// A simple checksum check can be added here
 	for i := 0; i < IBUS_NUM_CHANNELS; i++ {
-		Channels[i] = uint16(packet[2*i]) | uint16(packet[2*i+1])<<8
+		channelValues[i] = uint16(packet[2*i]) | uint16(packet[2*i+1])<<8
 	}
+	return channelValues
 }
