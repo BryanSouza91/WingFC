@@ -104,40 +104,88 @@ func main() {
 	})
 	println("UART configured for receiver.")
 
+	var retries = 0
+servoPWMInit:
 	servoPWMConfig := machine.PWMConfig{
 		Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY,
 	}
 	if err := pwm0.Configure(servoPWMConfig); err != nil {
-		println("could not configure PWM for servos:", err)
+		retries++
+		if retries < 5 {
+			time.Sleep(100 * time.Millisecond)
+			goto servoPWMInit
+		}
+		// Fallback or panic if max retries exceeded
+		println("CRITICAL: Servo PWM Init Failed")
 		return
 	}
+	// Reset retries for the next component
+	retries = 0
+servoCh1Init:
 	servoPeriodNs = servoPWMConfig.Period
 	pwmCh1, err = pwm0.Channel(PWM_CH1_PIN)
 	if err != nil {
-		println("could not get PWM channel 1:", err)
+		retries++
+		if retries < 5 {
+			time.Sleep(100 * time.Millisecond)
+			goto servoCh1Init
+		}
+		// Fallback or panic if max retries exceeded
+		println("CRITICAL: Servo PWM Channel 1 Init Failed")
 		return
 	}
+	// Reset retries for the next component
+	retries = 0
+servoCh2Init:
 	pwmCh2, err = pwm0.Channel(PWM_CH2_PIN)
 	if err != nil {
-		println("could not get PWM channel 2:", err)
+		retries++
+		if retries < 5 {
+			time.Sleep(100 * time.Millisecond)
+			goto servoCh2Init
+		}
+		// Fallback or panic if max retries exceeded
+		println("CRITICAL: Servo PWM Channel 2 Init Failed")
 		return
 	}
+	// Reset retries for the next component
+	retries = 0
+
 	setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 	println("PWM configured for servos.")
 
+escInit:
 	escPWMConfig := machine.PWMConfig{
 		Period: machine.GHz * 1 / ESC_PWM_FREQUENCY,
 	}
 	if err = pwm1.Configure(escPWMConfig); err != nil {
-		println("could not configure PWM for ESC:", err)
+		retries++
+		if retries < 5 {
+			time.Sleep(100 * time.Millisecond)
+			goto escInit
+		}
+		// Fallback or panic if max retries exceeded
+		println("CRITICAL: ESC PWM Init Failed")
 		return
 	}
+	// Reset retries for the next component
+	retries = 0
+escChInit:
 	escPeriodNs = escPWMConfig.Period
 	pwmCh3, err = pwm1.Channel(PWM_CH3_PIN)
 	if err != nil {
-		println("could not get PWM channel for ESC:", err)
+		retries++
+		if retries < 5 {
+			time.Sleep(100 * time.Millisecond)
+			goto escChInit
+		}
+		// Fallback or panic if max retries exceeded
+		println("CRITICAL: ESC PWM Channel Init Failed")
 		return
 	}
+	// Reset retries for the next component
+	retries = 0
+
 	setESC(MIN_PULSE_WIDTH_US)
 	println("PWM configured for ESC.")
 
@@ -147,6 +195,7 @@ func main() {
 	println("I2C configured for IMU.")
 
 	// --- IMU Setup ---
+imuInit:
 	lsm = lsm6ds3tr.New(i2c)
 	err = lsm.Configure(lsm6ds3tr.Configuration{
 		AccelRange:      lsm6ds3tr.ACCEL_8G,
@@ -155,17 +204,33 @@ func main() {
 		GyroSampleRate:  lsm6ds3tr.GYRO_SR_416,
 	})
 	if err != nil {
-		for {
-			println("Failed to configure LSM6DS3TR:", err.Error())
-			time.Sleep(time.Second)
+		retries++
+		if retries < 5 {
+			time.Sleep(100 * time.Millisecond)
+			goto imuInit
 		}
-	}
-	if !lsm.Connected() {
-		println("LSM6DS3TR not connected")
-		time.Sleep(time.Second)
+		// Fallback or panic if max retries exceeded
+		println("CRITICAL: IMU Init Failed")
 		return
 	}
-	println("LSM6DS3TR configured and initialized.")
+	// Reset retries for the next component
+	retries = 0
+
+imuCheck:
+	if !lsm.Connected() {
+		retries++
+		if retries < 5 {
+			time.Sleep(100 * time.Millisecond)
+			goto imuCheck
+		}
+		// Fallback or panic if max retries exceeded
+		println("CRITICAL: IMU Not Connected")
+		return
+	}
+	// Reset retries for the next component
+	retries = 0
+
+	println("LSM6DS3TR IMU configured and initialized.")
 
 	// --- Filter and Controller Setup ---
 	kf = NewKalmanFilter(dt)
