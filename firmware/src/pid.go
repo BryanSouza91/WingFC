@@ -34,3 +34,9 @@ func (pid *PIDController) Update(currentError, dt float64) float64 {
 
 	return output
 }
+
+// Reset clears the integral and derivative state of the PID controller.
+func (pid *PIDController) Reset() {
+	pid.integral = 0
+	pid.prevError = 0
+}
