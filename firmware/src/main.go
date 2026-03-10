@@ -19,6 +19,9 @@ var (
 	i2c      = machine.I2C0
 	lsm      *lsm6ds3tr.Device
 	watchdog = machine.Watchdog
+	redLED   = machine.LED_RED
+	greenLED = machine.LED_GREEN
+	blueLED  = machine.LED_BLUE
 
 	// PWM controllers and channels
 	pwm0          = machine.PWM0
@@ -104,12 +107,20 @@ func main() {
 	})
 	println("UART configured for receiver.")
 
+	// configure the onboard RGB LED (Low=on, High=off)
+	redLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
+	greenLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
+	blueLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
+
+	setLED(1) // G for servo config
+
 	var retries = 0
 servoPWMInit:
 	servoPWMConfig := machine.PWMConfig{
 		Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY,
 	}
 	if err := pwm0.Configure(servoPWMConfig); err != nil {
+		setLED(4) // RG on pwm0 init error
 		retries++
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
@@ -120,11 +131,13 @@ servoPWMInit:
 		return
 	}
 	// Reset retries for the next component
+	setLED(2) // G for servo inits
 	retries = 0
 servoCh1Init:
 	servoPeriodNs = servoPWMConfig.Period
 	pwmCh1, err = pwm0.Channel(PWM_CH1_PIN)
 	if err != nil {
+		setLED(6) // GB on servo init error
 		retries++
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
@@ -135,10 +148,12 @@ servoCh1Init:
 		return
 	}
 	// Reset retries for the next component
+	setLED(2)
 	retries = 0
 servoCh2Init:
 	pwmCh2, err = pwm0.Channel(PWM_CH2_PIN)
 	if err != nil {
+		setLED(6) // GB on servo error
 		retries++
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
@@ -149,6 +164,7 @@ servoCh2Init:
 		return
 	}
 	// Reset retries for the next component
+	setLED(1) // R for esc init
 	retries = 0
 
 	setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
@@ -159,6 +175,7 @@ escInit:
 		Period: machine.GHz * 1 / ESC_PWM_FREQUENCY,
 	}
 	if err = pwm1.Configure(escPWMConfig); err != nil {
+		setLED(5) // RB for pwm1 init error
 		retries++
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
@@ -169,12 +186,14 @@ escInit:
 		return
 	}
 	// Reset retries for the next component
+	setLED(2) // G for esc init
 	retries = 0
 escChInit:
 	escPeriodNs = escPWMConfig.Period
 	pwmCh3, err = pwm1.Channel(PWM_CH3_PIN)
 	if err != nil {
 		retries++
+		setLED(7) // RGB for esc init error
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
 			goto escChInit
@@ -184,6 +203,7 @@ escChInit:
 		return
 	}
 	// Reset retries for the next component
+	setLED(3) // B for IMU init
 	retries = 0
 
 	setESC(MIN_PULSE_WIDTH_US)
@@ -205,6 +225,7 @@ imuInit:
 	})
 	if err != nil {
 		retries++
+		setLED(4) // RG for imu init error
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
 			goto imuInit
@@ -214,10 +235,12 @@ imuInit:
 		return
 	}
 	// Reset retries for the next component
+	setLED(1) // red for IMU check
 	retries = 0
 
 imuCheck:
 	if !lsm.Connected() {
+		setLED(5) // RB for imu check error
 		retries++
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
@@ -228,6 +251,7 @@ imuCheck:
 		return
 	}
 	// Reset retries for the next component
+	setLED(0) // OFF after boot checks
 	retries = 0
 
 	println("LSM6DS3TR IMU configured and initialized.")
