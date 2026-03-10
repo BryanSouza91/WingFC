@@ -32,7 +32,6 @@ var (
 	// Control system components
 	pitchPID *PIDController
 	rollPID  *PIDController
-	resetPID *PIDController
 	dt       = 0.01
 	kf       *KalmanFilter
 	imuData  IMU
@@ -256,7 +255,8 @@ func main() {
 					rightPulse := uint32(Channels[ElevatorChannel])
 					setServo(leftPulse, rightPulse)
 					setESC(uint32(Channels[ThrottleChannel]))
-					resetPID.Reset()
+					pitchPID.Reset()
+					rollPID.Reset()
 					break
 				}
 				// In stabilized mode, use IMU, Kalman filter and PID controllers to stabilize the aircraft.
