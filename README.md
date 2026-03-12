@@ -35,7 +35,7 @@ What things you need to install the software and how to install them
 
 ### Installing
 
-[Download source code](https://github.com/BryanSouza91/WingFC/releases/tag/v0.2.3)
+[Download source code](https://github.com/BryanSouza91/WingFC/releases/tag/v0.2.1)
 Extract source code then navigate to the top directory of the source.
 ```
 cd firmware/src
