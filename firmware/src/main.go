@@ -248,6 +248,17 @@ func main() {
 					break
 				}
 
+				// Handle manual mode
+				if Channels[ManualModeChannel] > HIGH_RX_VALUE {
+					// Manual mode
+					leftPulse := uint32(Channels[AileronChannel])
+					rightPulse := uint32(Channels[ElevatorChannel])
+					setServo(leftPulse, rightPulse)
+					setESC(uint32(Channels[ThrottleChannel]))
+					pitchPID.Reset()
+					rollPID.Reset()
+					break
+				}
 				// In stabilized mode, use IMU, Kalman filter and PID controllers to stabilize the aircraft.
 
 				// Use the Kalman filter to fuse sensor data and get a stable attitude estimate.
