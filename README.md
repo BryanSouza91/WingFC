@@ -1,6 +1,6 @@
 # WingFC
 
-### Latest Version 0.2.2
+### Latest Version 0.2.3
 
 WingFC is a specialized open-source embedded flight controller designed specifically for the rapidly growing sub-250g flying wing FPV (First-Person-View) market. The project's core mission is to provide a reliable, user-friendly, and highly customizable solution for hobbyists and enthusiasts building ultra-lightweight Unmanned Aerial Vehicles (UAVs).
 
@@ -35,7 +35,7 @@ What things you need to install the software and how to install them
 
 ### Installing
 
-[Download source code](https://github.com/BryanSouza91/WingFC/releases/tag/v0.2.2)
+[Download source code](https://github.com/BryanSouza91/WingFC/releases/tag/v0.2.3)
 Extract source code then navigate to the top directory of the source.
 ```
 cd firmware/src
