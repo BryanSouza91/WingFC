@@ -187,10 +187,10 @@ func calculateCrc8(data []byte) byte {
 
 // ticksToUs converts the 11-bit channel value (172-1811) to microseconds (987-2012).
 func ticksToUs(ticks uint16) uint16 {
-	return uint16(float64(ticks - 992) * 5 / 8 + 1500)
+	return uint16(ticks * 5 / 8 + 880)
 }
 
 // usToTicks converts microseconds (987-2012) to the 11-bit channel value (172-1811).
 func usToTicks(us uint16) uint16 {
-	return uint16(float64(us - 1500) * 8 / 5 + 992)
+	return uint16(us * 8 / 5 + 880)
 }
