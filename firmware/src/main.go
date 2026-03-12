@@ -32,7 +32,6 @@ var (
 	// Control system components
 	pitchPID *PIDController
 	rollPID  *PIDController
-	resetPID *PIDController
 	dt       = 0.01
 	kf       *KalmanFilter
 	imuData  IMU
