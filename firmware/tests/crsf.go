@@ -145,9 +145,10 @@ func processReceiverPacket(payload [CRSF_PACKET_SIZE]byte) {
 			readValue |= uint32(readByte) << bitsMerged
 			bitsMerged += 8
 		}
-		channelValues[n] = uint16(readValue & 0x07FF)
+		channelValues[n] = uint16(readValue & 0x07FF) // Mask to 11 bits
 		readValue >>= 11
 		bitsMerged -= 11
+		println("Channel", n+1, "ticks:", channelValues[n], "us:", ticksToUs(channelValues[n]))
 	}
 	Channels = channelValues
 }
@@ -167,4 +168,14 @@ func calculateCrc8(data []byte) byte {
 		}
 	}
 	return crc
+}
+
+// ticksToUs converts the 11-bit channel value (172-1811) to microseconds (987-2012).
+func ticksToUs(ticks uint16) uint16 {
+	return uint16(ticks * 5 / 8 + 880)
+}
+
+// usToTicks converts microseconds (987-2012) to the 11-bit channel value (172-1811).
+func usToTicks(us uint16) uint16 {
+	return uint16(us * 8 / 5 + 880)
 }
