@@ -192,5 +192,5 @@ func ticksToUs(ticks uint16) uint16 {
 
 // usToTicks converts microseconds (988-2012) to the 11-bit channel value (172-1811).
 func usToTicks(us uint16) uint16 {
-	return uint16(us * 8 / 5 + 880)
+	return uint16((us - 880) * 8 / 5)
 }
