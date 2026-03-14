@@ -186,11 +186,13 @@ func calculateCrc8(data []byte) byte {
 }
 
 // ticksToUs converts the 11-bit channel value (172-1811) to microseconds (988-2012).
+// Based on CRSF spec, https://github.com/tbs-fpv/tbs-crsf-spec/blob/main/crsf.md#0x16-rc-channels-packed-payload
 func ticksToUs(ticks uint16) uint16 {
 	return uint16(ticks * 5 / 8 + 880)
 }
 
 // usToTicks converts microseconds (988-2012) to the 11-bit channel value (172-1811).
+// Based on CRSF spec, https://github.com/tbs-fpv/tbs-crsf-spec/blob/main/crsf.md#0x16-rc-channels-packed-payload
 func usToTicks(us uint16) uint16 {
 	return uint16((us - 880) * 8 / 5)
 }
