@@ -13,12 +13,12 @@ func readLSMData() {
 	}
 
 	// Low-pass filter
-	imuData.AccelX += LPF_ALPHA * (float64(rawAccelX) * microGToMS2 - imuData.AccelX)
-	imuData.AccelY += LPF_ALPHA * (float64(rawAccelY) * microGToMS2 - imuData.AccelY)
-	imuData.AccelZ += LPF_ALPHA * (float64(rawAccelZ) * microGToMS2 - imuData.AccelZ)
-	imuData.GyroX += LPF_ALPHA * (float64(rawGyroX) * microDPSToRadS - imuData.GyroX)
-	imuData.GyroY += LPF_ALPHA * (float64(rawGyroY) * microDPSToRadS - imuData.GyroY)
-	imuData.GyroZ += LPF_ALPHA * (float64(rawGyroZ) * microDPSToRadS - imuData.GyroZ)
+	imuData.AccelX += LPF_ALPHA * (float64(rawAccelX)*microGToMS2 - imuData.AccelX)
+	imuData.AccelY += LPF_ALPHA * (float64(rawAccelY)*microGToMS2 - imuData.AccelY)
+	imuData.AccelZ += LPF_ALPHA * (float64(rawAccelZ)*microGToMS2 - imuData.AccelZ)
+	imuData.GyroX += LPF_ALPHA * (float64(rawGyroX)*microDPSToRadS - imuData.GyroX)
+	imuData.GyroY += LPF_ALPHA * (float64(rawGyroY)*microDPSToRadS - imuData.GyroY)
+	imuData.GyroZ += LPF_ALPHA * (float64(rawGyroZ)*microDPSToRadS - imuData.GyroZ)
 }
 
 // Process the raw IMU data by applying calibration offsets and computing roll/pitch angles.

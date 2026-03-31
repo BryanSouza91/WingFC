@@ -96,6 +96,13 @@ func main() {
 
 	println("Initializing...")
 
+	// configure the onboard RGB LED (Low=on, High=off)
+	redLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
+	greenLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
+	blueLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
+	ledController.state = LEDOFF
+	ledController.updateLED()
+
 	// --- Hardware Setup ---
 	uart.Configure(machine.UARTConfig{
 		BaudRate: BAUD_RATE,
@@ -104,12 +111,17 @@ func main() {
 	})
 	println("UART configured for receiver.")
 
+	ledController.state = PWMCONFIG
+	ledController.updateLED()
+
 	var retries = 0
 servoPWMInit:
 	servoPWMConfig := machine.PWMConfig{
 		Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY,
 	}
 	if err := pwm0.Configure(servoPWMConfig); err != nil {
+		ledController.state = PWMERROR
+		ledController.updateLED()
 		retries++
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
@@ -120,11 +132,15 @@ servoPWMInit:
 		return
 	}
 	// Reset retries for the next component
+	ledController.state = SERVOINIT
+	ledController.updateLED()
 	retries = 0
 servoCh1Init:
 	servoPeriodNs = servoPWMConfig.Period
 	pwmCh1, err = pwm0.Channel(PWM_CH1_PIN)
 	if err != nil {
+		ledController.state = SERVOERROR
+		ledController.updateLED()
 		retries++
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
@@ -135,10 +151,14 @@ servoCh1Init:
 		return
 	}
 	// Reset retries for the next component
+	ledController.state = SERVOINIT
+	ledController.updateLED()
 	retries = 0
 servoCh2Init:
 	pwmCh2, err = pwm0.Channel(PWM_CH2_PIN)
 	if err != nil {
+		ledController.state = SERVOERROR
+		ledController.updateLED()
 		retries++
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
@@ -149,6 +169,8 @@ servoCh2Init:
 		return
 	}
 	// Reset retries for the next component
+	ledController.state = ESCINIT
+	ledController.updateLED()
 	retries = 0
 
 	setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
@@ -159,6 +181,8 @@ escInit:
 		Period: machine.GHz * 1 / ESC_PWM_FREQUENCY,
 	}
 	if err = pwm1.Configure(escPWMConfig); err != nil {
+		ledController.state = ESCERROR
+		ledController.updateLED()
 		retries++
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
@@ -169,12 +193,15 @@ escInit:
 		return
 	}
 	// Reset retries for the next component
-	retries = 0
+	ledController.state = ESCINIT
+	ledController.updateLED()
 escChInit:
 	escPeriodNs = escPWMConfig.Period
 	pwmCh3, err = pwm1.Channel(PWM_CH3_PIN)
 	if err != nil {
 		retries++
+		ledController.state = ESCERROR
+		ledController.updateLED()
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
 			goto escChInit
@@ -184,6 +211,8 @@ escChInit:
 		return
 	}
 	// Reset retries for the next component
+	ledController.state = IMUCONFIG
+	ledController.updateLED()
 	retries = 0
 
 	setESC(MIN_PULSE_WIDTH_US)
@@ -205,6 +234,8 @@ imuInit:
 	})
 	if err != nil {
 		retries++
+		ledController.state = IMUERROR
+		ledController.updateLED()
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
 			goto imuInit
@@ -214,10 +245,14 @@ imuInit:
 		return
 	}
 	// Reset retries for the next component
+	ledController.state = IMUINIT
+	ledController.updateLED()
 	retries = 0
 
 imuCheck:
 	if !lsm.Connected() {
+		ledController.state = IMUERROR
+		ledController.updateLED()
 		retries++
 		if retries < 5 {
 			time.Sleep(100 * time.Millisecond)
@@ -228,6 +263,8 @@ imuCheck:
 		return
 	}
 	// Reset retries for the next component
+	ledController.state = LEDOFF
+	ledController.updateLED()
 	retries = 0
 
 	println("LSM6DS3TR IMU configured and initialized.")
@@ -283,6 +320,8 @@ imuCheck:
 			// The state machine from previous versions is now the default case
 			switch flightState {
 			case CALIBRATION:
+				ledController.state = CALIBRATE
+				ledController.updateLED()
 				// Keep outputs at neutral and ESC at zero
 				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 				setESC(MIN_PULSE_WIDTH_US)
@@ -295,15 +334,21 @@ imuCheck:
 
 				lastFlightState = flightState
 				flightState = FLIGHT_MODE
+				ledController.state = LEDOFF
+				ledController.updateLED()
 
 			case FLIGHT_MODE:
 				// Switch to armed mode if CH5 is high
 				// Check for arm/disarm first every loop
 				if Channels[ArmChannel] <= HIGH_RX_VALUE {
 					println("Disarmed.")
+					ledController.state = DISARMED
+					ledController.updateLED()
 					armed = false
 				} else {
 					println("Armed!")
+					ledController.state = ARMED
+					ledController.updateLED()
 					armed = true
 				}
 
@@ -384,7 +429,8 @@ imuCheck:
 			case FAILSAFE:
 				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 				setESC(MIN_PULSE_WIDTH_US)
-
+				ledController.state = FAILSAFED
+				ledController.updateLED()
 				if time.Since(LastPacketTime).Milliseconds() <= FAILSAFE_TIMEOUT_MS {
 					lastFlightState = flightState
 					flightState = FLIGHT_MODE
