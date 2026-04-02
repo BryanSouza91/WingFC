@@ -1,12 +1,9 @@
 package main
 
 import (
-	// "fmt"
 	"machine"
 	"math"
 	"time"
-
-	"tinygo.org/x/drivers/lsm6ds3tr"
 )
 
 // Version of the flight controller software.
@@ -14,20 +11,10 @@ const Version = "0.2.3"
 
 // Global variables for hardware interfaces, controllers, and filters.
 var (
-	// Hardware interfaces
-	uart     = machine.DefaultUART
-	i2c      = machine.I2C0
-	lsm      *lsm6ds3tr.Device
 	watchdog = machine.Watchdog
 
-	// PWM controllers and channels
-	pwm0          = machine.PWM0
-	pwm1          = machine.PWM1
-	pwmCh1        uint8
-	pwmCh2        uint8
-	pwmCh3        uint8
-	servoPeriodNs uint64
-	escPeriodNs   uint64
+	// Global hardware instance
+	hw *FC_Hardware
 
 	// Control system components
 	pitchPID *PIDController
@@ -70,11 +57,6 @@ const (
 	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * math.Pi / 180
 	MAX_PITCH_RATE = MAX_PITCH_RATE_DEG * math.Pi / 180
 
-	// --- Hardware Mappings ---
-	PWM_CH1_PIN = machine.D0 // Aileron Servo
-	PWM_CH2_PIN = machine.D1 // Elevator Servo
-	PWM_CH3_PIN = machine.D2 // ESC (Electronic Speed Controller)
-
 	// Fail-safe constants
 	FAILSAFE_TIMEOUT_MS = 500
 
@@ -88,7 +70,9 @@ type flightState int
 
 // main is the entry point for the TinyGo program.
 func main() {
-	time.Sleep(2 * time.Second) // Wait for hardware to stabilize
+	// Delay may be necessary for USB serial connection
+	// time.Sleep(2 * time.Second) // Wait for hardware to stabilize
+
 	println("WingFC Flight Controller - Version", Version)
 	println("A TinyGo Flight Controller for Flying Wing Aircraft")
 	println("Source: github.com/BryanSouza91/WingFC")
@@ -96,178 +80,26 @@ func main() {
 
 	println("Initializing...")
 
-	// configure the onboard RGB LED (Low=on, High=off)
-	redLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
-	greenLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
-	blueLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
-	ledController.state = LEDOFF
-	ledController.updateLED()
-
-	// --- Hardware Setup ---
-	uart.Configure(machine.UARTConfig{
-		BaudRate: BAUD_RATE,
-		TX:       machine.UART_TX_PIN,
-		RX:       machine.UART_RX_PIN,
-	})
-	println("UART configured for receiver.")
-
-	ledController.state = PWMCONFIG
-	ledController.updateLED()
-
-	var retries = 0
-servoPWMInit:
-	servoPWMConfig := machine.PWMConfig{
-		Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY,
+	// Create concrete implementations and wire them into FC_Hardware
+	hw = &FC_Hardware{
+		I2C:         NewMachineI2C(machine.I2C0),
+		UART:        NewMachineUART(machine.DefaultUART),
+		ServoPWM:    NewMachinePWM0(machine.PWM0),
+		ESCPWM:      NewMachinePWM1(machine.PWM1),
+		LED:         NewLEDController(),
+		PWM_CH1_PIN: machine.D0, // Aileron Servo
+		PWM_CH2_PIN: machine.D1, // Elevator Servo
+		PWM_CH3_PIN: machine.D2, // ESC
 	}
-	if err := pwm0.Configure(servoPWMConfig); err != nil {
-		ledController.state = PWMERROR
-		ledController.updateLED()
-		retries++
-		if retries < 5 {
-			time.Sleep(100 * time.Millisecond)
-			goto servoPWMInit
+
+	// Initialize all hardware
+	if err := InitHardware(hw); err != nil {
+		println("CRITICAL: Hardware initialization failed:", err)
+		// Enter error loop - LED will show error state
+		for {
+			time.Sleep(time.Second)
 		}
-		// Fallback or panic if max retries exceeded
-		println("CRITICAL: Servo PWM Init Failed")
-		return
 	}
-	// Reset retries for the next component
-	ledController.state = SERVOINIT
-	ledController.updateLED()
-	retries = 0
-servoCh1Init:
-	servoPeriodNs = servoPWMConfig.Period
-	pwmCh1, err = pwm0.Channel(PWM_CH1_PIN)
-	if err != nil {
-		ledController.state = SERVOERROR
-		ledController.updateLED()
-		retries++
-		if retries < 5 {
-			time.Sleep(100 * time.Millisecond)
-			goto servoCh1Init
-		}
-		// Fallback or panic if max retries exceeded
-		println("CRITICAL: Servo PWM Channel 1 Init Failed")
-		return
-	}
-	// Reset retries for the next component
-	ledController.state = SERVOINIT
-	ledController.updateLED()
-	retries = 0
-servoCh2Init:
-	pwmCh2, err = pwm0.Channel(PWM_CH2_PIN)
-	if err != nil {
-		ledController.state = SERVOERROR
-		ledController.updateLED()
-		retries++
-		if retries < 5 {
-			time.Sleep(100 * time.Millisecond)
-			goto servoCh2Init
-		}
-		// Fallback or panic if max retries exceeded
-		println("CRITICAL: Servo PWM Channel 2 Init Failed")
-		return
-	}
-	// Reset retries for the next component
-	ledController.state = ESCINIT
-	ledController.updateLED()
-	retries = 0
-
-	setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
-	println("PWM configured for servos.")
-
-escInit:
-	escPWMConfig := machine.PWMConfig{
-		Period: machine.GHz * 1 / ESC_PWM_FREQUENCY,
-	}
-	if err = pwm1.Configure(escPWMConfig); err != nil {
-		ledController.state = ESCERROR
-		ledController.updateLED()
-		retries++
-		if retries < 5 {
-			time.Sleep(100 * time.Millisecond)
-			goto escInit
-		}
-		// Fallback or panic if max retries exceeded
-		println("CRITICAL: ESC PWM Init Failed")
-		return
-	}
-	// Reset retries for the next component
-	ledController.state = ESCINIT
-	ledController.updateLED()
-escChInit:
-	escPeriodNs = escPWMConfig.Period
-	pwmCh3, err = pwm1.Channel(PWM_CH3_PIN)
-	if err != nil {
-		retries++
-		ledController.state = ESCERROR
-		ledController.updateLED()
-		if retries < 5 {
-			time.Sleep(100 * time.Millisecond)
-			goto escChInit
-		}
-		// Fallback or panic if max retries exceeded
-		println("CRITICAL: ESC PWM Channel Init Failed")
-		return
-	}
-	// Reset retries for the next component
-	ledController.state = IMUCONFIG
-	ledController.updateLED()
-	retries = 0
-
-	setESC(MIN_PULSE_WIDTH_US)
-	println("PWM configured for ESC.")
-
-	i2c.Configure(machine.I2CConfig{
-		Frequency: 400 * machine.KHz,
-	})
-	println("I2C configured for IMU.")
-
-	// --- IMU Setup ---
-imuInit:
-	lsm = lsm6ds3tr.New(i2c)
-	err = lsm.Configure(lsm6ds3tr.Configuration{
-		AccelRange:      lsm6ds3tr.ACCEL_8G,
-		AccelSampleRate: lsm6ds3tr.ACCEL_SR_416,
-		GyroRange:       lsm6ds3tr.GYRO_1000DPS,
-		GyroSampleRate:  lsm6ds3tr.GYRO_SR_416,
-	})
-	if err != nil {
-		retries++
-		ledController.state = IMUERROR
-		ledController.updateLED()
-		if retries < 5 {
-			time.Sleep(100 * time.Millisecond)
-			goto imuInit
-		}
-		// Fallback or panic if max retries exceeded
-		println("CRITICAL: IMU Init Failed")
-		return
-	}
-	// Reset retries for the next component
-	ledController.state = IMUINIT
-	ledController.updateLED()
-	retries = 0
-
-imuCheck:
-	if !lsm.Connected() {
-		ledController.state = IMUERROR
-		ledController.updateLED()
-		retries++
-		if retries < 5 {
-			time.Sleep(100 * time.Millisecond)
-			goto imuCheck
-		}
-		// Fallback or panic if max retries exceeded
-		println("CRITICAL: IMU Not Connected")
-		return
-	}
-	// Reset retries for the next component
-	ledController.state = LEDOFF
-	ledController.updateLED()
-	retries = 0
-
-	println("LSM6DS3TR IMU configured and initialized.")
 
 	// --- Filter and Controller Setup ---
 	kf = NewKalmanFilter(dt)
@@ -320,8 +152,8 @@ imuCheck:
 			// The state machine from previous versions is now the default case
 			switch flightState {
 			case CALIBRATION:
-				ledController.state = CALIBRATE
-				ledController.updateLED()
+				hw.LED.SetState(CALIBRATE)
+				hw.LED.Update()
 				// Keep outputs at neutral and ESC at zero
 				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 				setESC(MIN_PULSE_WIDTH_US)
@@ -334,21 +166,21 @@ imuCheck:
 
 				lastFlightState = flightState
 				flightState = FLIGHT_MODE
-				ledController.state = LEDOFF
-				ledController.updateLED()
+				hw.LED.SetState(LEDOFF)
+				hw.LED.Update()
 
 			case FLIGHT_MODE:
 				// Switch to armed mode if CH5 is high
 				// Check for arm/disarm first every loop
 				if Channels[ArmChannel] <= HIGH_RX_VALUE {
 					println("Disarmed.")
-					ledController.state = DISARMED
-					ledController.updateLED()
+					hw.LED.SetState(DISARMED)
+					hw.LED.Update()
 					armed = false
 				} else {
 					println("Armed!")
-					ledController.state = ARMED
-					ledController.updateLED()
+					hw.LED.SetState(ARMED)
+					hw.LED.Update()
 					armed = true
 				}
 
@@ -429,8 +261,8 @@ imuCheck:
 			case FAILSAFE:
 				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 				setESC(MIN_PULSE_WIDTH_US)
-				ledController.state = FAILSAFED
-				ledController.updateLED()
+				hw.LED.SetState(FAILSAFED)
+				hw.LED.Update()
 				if time.Since(LastPacketTime).Milliseconds() <= FAILSAFE_TIMEOUT_MS {
 					lastFlightState = flightState
 					flightState = FLIGHT_MODE

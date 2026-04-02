@@ -2,12 +2,15 @@ package main
 
 // Read raw IMU data from the LSM6DS3TR sensor and apply a low-pass filter.
 func readLSMData() {
+	if hw == nil || hw.IMU == nil {
+		return
+	}
 	// Read raw sensor data from the IMU
-	rawAccelX, rawAccelY, rawAccelZ, err := lsm.ReadAcceleration()
+	rawAccelX, rawAccelY, rawAccelZ, err := hw.IMU.ReadAccel()
 	if err != nil {
 		println("Error reading acceleration:", err)
 	}
-	rawGyroX, rawGyroY, rawGyroZ, err := lsm.ReadRotation()
+	rawGyroX, rawGyroY, rawGyroZ, err := hw.IMU.ReadGyro()
 	if err != nil {
 		println("Error reading rotation:", err)
 	}
@@ -80,25 +83,31 @@ func mapRange[T uint16 | uint32 | float64](value, fromMin, fromMax, toMin, toMax
 // setServo sets the PWM duty cycle for the aileron and elevator servos.
 // It converts a pulse width in microseconds to a value relative to the PWM period.
 func setServo(leftPulse, rightPulse uint32) {
+	if hw == nil || hw.ServoPWM == nil {
+		return
+	}
 	// The Period() function is not available. We use the saved period instead.
-	top_value := pwm0.Top()
+	top_value := hw.ServoPWM.Top()
 
 	// Calculate the duty cycle for the left servo.
-	duty_left := uint32(uint64(leftPulse) * 1000 * uint64(top_value) / uint64(servoPeriodNs))
-	pwm0.Set(pwmCh1, duty_left)
+	duty_left := uint32(uint64(leftPulse) * 1000 * uint64(top_value) / uint64(hw.ServoPeriod))
+	hw.ServoPWM.Set(hw.pwmCh1, duty_left)
 
 	// Calculate the duty cycle for the right servo.
-	duty_right := uint32(uint64(rightPulse) * 1000 * uint64(top_value) / uint64(servoPeriodNs))
-	pwm0.Set(pwmCh2, duty_right)
+	duty_right := uint32(uint64(rightPulse) * 1000 * uint64(top_value) / uint64(hw.ServoPeriod))
+	hw.ServoPWM.Set(hw.pwmCh2, duty_right)
 }
 
 // setESC sets the PWM duty cycle for the ESC.
 // It converts a pulse width in microseconds to a value relative to the PWM period.
 func setESC(pulseWidth uint32) {
+	if hw == nil || hw.ESCPWM == nil {
+		return
+	}
 	// The Period() function is not available. We use the saved period instead.
-	top_value := pwm1.Top()
+	top_value := hw.ESCPWM.Top()
 
 	// Calculate the duty cycle for the ESC.
-	duty := uint32(uint64(pulseWidth) * 1000 * uint64(top_value) / uint64(escPeriodNs))
-	pwm1.Set(pwmCh3, duty)
+	duty := uint32(uint64(pulseWidth) * 1000 * uint64(top_value) / uint64(hw.ESCPeriod))
+	hw.ESCPWM.Set(hw.pwmCh3, duty)
 }

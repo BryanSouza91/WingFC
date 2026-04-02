@@ -24,71 +24,103 @@ const (
 // LEDController handles the onboard RGB LED
 type LEDController struct {
 	state LEDState
+	red   machine.Pin
+	green machine.Pin
+	blue  machine.Pin
 }
 
-var ledController LEDController
+// NewLEDController creates a new LED controller with the given pins.
+func NewLEDController() *LEDController {
+	// Configure and wire up hardware with dependency injection
+	redLED := machine.LED_RED
+	greenLED := machine.LED_GREEN
+	blueLED := machine.LED_BLUE
 
-var redLED = machine.LED_RED
-var greenLED = machine.LED_GREEN
-var blueLED = machine.LED_BLUE
+	// Initialize LED pins
+	redLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
+	greenLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
+	blueLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
 
-func (l *LEDController) updateLED() {
+	return &LEDController{
+		state: LEDOFF,
+		red:   redLED,
+		green: greenLED,
+		blue:  blueLED,
+	}
+}
+
+// SetState updates the LED state.
+func (l *LEDController) SetState(state LEDState) {
+	l.state = state
+}
+
+// Update applies the current LED state.
+func (l *LEDController) Update() {
+	l.updateLED(l.state)
+}
+
+// updateLED sets the LED pins based on the current state.
+func (l *LEDController) updateLED(condition LEDState) {
+	// Update LEDState with condition
+	l.state = condition
+
+	// activate appropriate LED sequence
 	switch l.state {
 	case LEDOFF:
-		redLED.High()
-		greenLED.High()
-		blueLED.High()
+		l.red.High()
+		l.green.High()
+		l.blue.High()
 	case PWMCONFIG: // R
-		redLED.Low()
-		greenLED.High()
-		blueLED.High()
+		l.red.Low()
+		l.green.High()
+		l.blue.High()
 	case PWMERROR: // RG
-		redLED.Low()
-		greenLED.Low()
-		blueLED.High()
+		l.red.Low()
+		l.green.Low()
+		l.blue.High()
 	case SERVOINIT: // G
-		redLED.High()
-		greenLED.Low()
-		blueLED.High()
+		l.red.High()
+		l.green.Low()
+		l.blue.High()
 	case SERVOERROR: // GB
-		redLED.High()
-		greenLED.Low()
-		blueLED.Low()
+		l.red.High()
+		l.green.Low()
+		l.blue.Low()
 	case ESCINIT: // R
-		redLED.Low()
-		greenLED.High()
-		blueLED.High()
+		l.red.Low()
+		l.green.High()
+		l.blue.High()
 	case ESCERROR: // RGB
-		redLED.Low()
-		greenLED.Low()
-		blueLED.Low()
+		l.red.Low()
+		l.green.Low()
+		l.blue.Low()
 	case IMUCONFIG: // B
-		redLED.High()
-		greenLED.High()
-		blueLED.Low()
+		l.red.High()
+		l.green.High()
+		l.blue.Low()
 	case IMUINIT: // R
-		redLED.Low()
-		greenLED.High()
-		blueLED.High()
+		l.red.Low()
+		l.green.High()
+		l.blue.High()
 	case IMUERROR: // RB
-		redLED.Low()
-		greenLED.High()
-		blueLED.Low()
+		l.red.Low()
+		l.green.High()
+		l.blue.Low()
 	case CALIBRATE: // RGB
-		redLED.Low()
-		greenLED.Low()
-		blueLED.Low()
+		l.red.Low()
+		l.green.Low()
+		l.blue.Low()
 	case DISARMED: // G
-		redLED.High()
-		greenLED.Low()
-		blueLED.High()
+		l.red.High()
+		l.green.Low()
+		l.blue.High()
 	case ARMED: // B
-		redLED.High()
-		greenLED.High()
-		blueLED.Low()
+		l.red.High()
+		l.green.High()
+		l.blue.Low()
 	case FAILSAFED: // R
-		redLED.Low()
-		greenLED.High()
-		blueLED.High()
+		l.red.Low()
+		l.green.High()
+		l.blue.High()
 	}
 }
