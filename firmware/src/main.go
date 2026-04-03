@@ -19,7 +19,7 @@ var (
 	// Control system components
 	pitchPID *PIDController
 	rollPID  *PIDController
-	dt       = 0.01
+	dt       = 0.005 // 5ms loop time for 200Hz control loop
 	kf       *KalmanFilter
 	imuData  IMU
 
@@ -133,7 +133,6 @@ func main() {
 			LastPacketTime = time.Now()
 			// A complete packet has been received.
 			Channels = processReceiverPacket(packet)
-			// println("Received and processed a new receiver packet.")
 
 		default:
 			// Control loop at fixed intervals
@@ -173,12 +172,12 @@ func main() {
 				// Switch to armed mode if CH5 is high
 				// Check for arm/disarm first every loop
 				if Channels[ArmChannel] <= HIGH_RX_VALUE {
-					println("Disarmed.")
+					// println("Disarmed.")
 					hw.LED.SetState(DISARMED)
 					hw.LED.Update()
 					armed = false
 				} else {
-					println("Armed!")
+					// println("Armed!")
 					hw.LED.SetState(ARMED)
 					hw.LED.Update()
 					armed = true
@@ -260,14 +259,6 @@ func main() {
 					// This is disarmed mode, set ESC to minimum
 					setESC(MIN_PULSE_WIDTH_US)
 				}
-
-				// Print status and sensor data for debugging
-				println()
-				println(desiredPitchRate, pitchOutput, desiredRollRate, rollOutput)
-				println()
-				println(Channels[ElevatorChannel], Channels[AileronChannel]) // , Channels[ThrottleChannel])
-				println(leftPulse, rightPulse)
-				println()
 
 			case FAILSAFE:
 				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
