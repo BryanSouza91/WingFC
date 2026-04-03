@@ -38,7 +38,15 @@ func InitHardware(hw *FC_Hardware) error {
 	if hw == nil {
 		return fmt.Errorf("hardware cannot be nil")
 	}
+	// Create the Adapters for the physical pins
+	// These are the only lines where the physical hardware is mentioned.
+	redAdapter := NewMachinePin(machine.LED_RED)
+	greenAdapter := NewMachinePin(machine.LED_GREEN)
+	blueAdapter := NewMachinePin(machine.LED_BLUE)
 
+	// Inject the adapters into the Logic Controller
+	// This satisfies the LEDUpdater interface requirement in FC_Hardware
+	hw.LED = NewLEDController(redAdapter, greenAdapter, blueAdapter)
 	// Initialize UART for receiver communication
 	if err := initUART(hw); err != nil {
 		hw.LED.SetState(LEDOFF)

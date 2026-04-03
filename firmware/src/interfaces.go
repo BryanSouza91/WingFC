@@ -2,6 +2,13 @@ package main
 
 import "machine"
 
+// DigitalPin defines the interface for basic GPIO operations.
+type DigitalPin interface {
+	Configure(config machine.PinConfig)
+	High()
+	Low()
+}
+
 // UART defines the interface for serial communication.
 type UART interface {
 	Configure(machine.UARTConfig) error

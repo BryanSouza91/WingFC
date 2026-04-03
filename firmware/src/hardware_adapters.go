@@ -6,6 +6,27 @@ import (
 	"tinygo.org/x/drivers/lsm6ds3tr"
 )
 
+// MachinePin adapts machine.Pin to the DigitalPin interface.
+type MachinePin struct {
+	pin machine.Pin
+}
+
+func NewMachinePin(pin machine.Pin) *MachinePin {
+	return &MachinePin{pin: pin}
+}
+
+func (m *MachinePin) Configure(cfg machine.PinConfig) {
+	m.pin.Configure(cfg)
+}
+
+func (m *MachinePin) High() {
+	m.pin.High()
+}
+
+func (m *MachinePin) Low() {
+	m.pin.Low()
+}
+
 // === UART Adapters ===
 
 // MachineUART adapts machine.UART to the UART interface.

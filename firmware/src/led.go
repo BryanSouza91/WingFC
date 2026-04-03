@@ -21,31 +21,26 @@ const (
 	FAILSAFED
 )
 
-// LEDController handles the onboard RGB LED
+// LEDController now uses the DigitalPin interface for its dependencies.
 type LEDController struct {
 	state LEDState
-	red   machine.Pin
-	green machine.Pin
-	blue  machine.Pin
+	red   DigitalPin
+	green DigitalPin
+	blue  DigitalPin
 }
 
-// NewLEDController creates a new LED controller with the given pins.
-func NewLEDController() *LEDController {
-	// Configure and wire up hardware with dependency injection
-	redLED := machine.LED_RED
-	greenLED := machine.LED_GREEN
-	blueLED := machine.LED_BLUE
-
-	// Initialize LED pins
-	redLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
-	greenLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
-	blueLED.Configure(machine.PinConfig{Mode: machine.PinOutput})
+// NewLEDController accepts the interface types, allowing for injection.
+func NewLEDController(red, green, blue DigitalPin) *LEDController {
+	// Initialize pins through the interface
+	red.Configure(machine.PinConfig{Mode: machine.PinOutput})
+	green.Configure(machine.PinConfig{Mode: machine.PinOutput})
+	blue.Configure(machine.PinConfig{Mode: machine.PinOutput})
 
 	return &LEDController{
 		state: LEDOFF,
-		red:   redLED,
-		green: greenLED,
-		blue:  blueLED,
+		red:   red,
+		green: green,
+		blue:  blue,
 	}
 }
 
