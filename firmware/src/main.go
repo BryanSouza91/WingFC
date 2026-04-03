@@ -206,16 +206,9 @@ func main() {
 				kf.Predict(imuData.GyroX, imuData.GyroY)
 				kf.Update(imuData.Pitch, imuData.Roll)
 
-				// In armed mode, use RC inputs to set desired rates.
-				if armed {
-					// Get desired roll and pitch rates from the RC receiver.
-					desiredPitchRate = mapRange(float64(Channels[ElevatorChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
-					desiredRollRate = mapRange(float64(Channels[AileronChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
-				} else {
-					// This is disarmed mode, set desired rates to zero
-					desiredPitchRate = mapRange(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
-					desiredRollRate = mapRange(NEUTRAL_RX_VALUE, MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
-				}
+				// Get desired roll and pitch rates from the RC receiver.
+				desiredPitchRate = mapRange(float64(Channels[ElevatorChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
+				desiredRollRate = mapRange(float64(Channels[AileronChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
 
 				// Apply deadband to avoid small unwanted movements
 				if math.Abs(desiredPitchRate) < DEADBAND*math.Pi/180 {
