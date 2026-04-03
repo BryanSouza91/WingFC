@@ -1,38 +1,25 @@
 package main
 
 import (
-	// "fmt"
 	"machine"
 	"math"
 	"time"
-
-	"tinygo.org/x/drivers/lsm6ds3tr"
 )
 
 // Version of the flight controller software.
-const Version = "0.2.3"
+const Version = "0.3.0"
 
 // Global variables for hardware interfaces, controllers, and filters.
 var (
-	// Hardware interfaces
-	uart     = machine.DefaultUART
-	i2c      = machine.I2C0
-	lsm      *lsm6ds3tr.Device
 	watchdog = machine.Watchdog
 
-	// PWM controllers and channels
-	pwm0          = machine.PWM0
-	pwm1          = machine.PWM1
-	pwmCh1        uint8
-	pwmCh2        uint8
-	pwmCh3        uint8
-	servoPeriodNs uint64
-	escPeriodNs   uint64
+	// Global hardware instance
+	hw *FC_Hardware
 
 	// Control system components
 	pitchPID *PIDController
 	rollPID  *PIDController
-	dt       = 0.01
+	dt       = 0.005 // 5ms loop time for 200Hz control loop
 	kf       *KalmanFilter
 	imuData  IMU
 
@@ -70,11 +57,6 @@ const (
 	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * math.Pi / 180
 	MAX_PITCH_RATE = MAX_PITCH_RATE_DEG * math.Pi / 180
 
-	// --- Hardware Mappings ---
-	PWM_CH1_PIN = machine.D0 // Aileron Servo
-	PWM_CH2_PIN = machine.D1 // Elevator Servo
-	PWM_CH3_PIN = machine.D2 // ESC (Electronic Speed Controller)
-
 	// Fail-safe constants
 	FAILSAFE_TIMEOUT_MS = 500
 
@@ -88,7 +70,9 @@ type flightState int
 
 // main is the entry point for the TinyGo program.
 func main() {
-	time.Sleep(2 * time.Second) // Wait for hardware to stabilize
+	// Delay may be necessary for USB serial connection
+	// time.Sleep(2 * time.Second) // Wait for hardware to stabilize
+
 	println("WingFC Flight Controller - Version", Version)
 	println("A TinyGo Flight Controller for Flying Wing Aircraft")
 	println("Source: github.com/BryanSouza91/WingFC")
@@ -96,76 +80,26 @@ func main() {
 
 	println("Initializing...")
 
-	// --- Hardware Setup ---
-	uart.Configure(machine.UARTConfig{
-		BaudRate: BAUD_RATE,
-		TX:       machine.UART_TX_PIN,
-		RX:       machine.UART_RX_PIN,
-	})
-	println("UART configured for receiver.")
+	// Create concrete implementations and wire them into FC_Hardware
+	hw = &FC_Hardware{
+		I2C:         NewMachineI2C(machine.I2C0),
+		UART:        NewMachineUART(machine.DefaultUART),
+		ServoPWM:    NewMachinePWM0(machine.PWM0),
+		ESCPWM:      NewMachinePWM1(machine.PWM1),
+		LED:         NewLEDController(machine.LED_RED, machine.LED_GREEN, machine.LED_BLUE),
+		PWM_CH1_PIN: machine.D0, // Aileron Servo
+		PWM_CH2_PIN: machine.D1, // Elevator Servo
+		PWM_CH3_PIN: machine.D2, // ESC
+	}
 
-	servoPWMConfig := machine.PWMConfig{
-		Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY,
-	}
-	if err := pwm0.Configure(servoPWMConfig); err != nil {
-		println("could not configure PWM for servos:", err)
-		return
-	}
-	servoPeriodNs = servoPWMConfig.Period
-	pwmCh1, err = pwm0.Channel(PWM_CH1_PIN)
-	if err != nil {
-		println("could not get PWM channel 1:", err)
-		return
-	}
-	pwmCh2, err = pwm0.Channel(PWM_CH2_PIN)
-	if err != nil {
-		println("could not get PWM channel 2:", err)
-		return
-	}
-	setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
-	println("PWM configured for servos.")
-
-	escPWMConfig := machine.PWMConfig{
-		Period: machine.GHz * 1 / ESC_PWM_FREQUENCY,
-	}
-	if err = pwm1.Configure(escPWMConfig); err != nil {
-		println("could not configure PWM for ESC:", err)
-		return
-	}
-	escPeriodNs = escPWMConfig.Period
-	pwmCh3, err = pwm1.Channel(PWM_CH3_PIN)
-	if err != nil {
-		println("could not get PWM channel for ESC:", err)
-		return
-	}
-	setESC(MIN_PULSE_WIDTH_US)
-	println("PWM configured for ESC.")
-
-	i2c.Configure(machine.I2CConfig{
-		Frequency: 400 * machine.KHz,
-	})
-	println("I2C configured for IMU.")
-
-	// --- IMU Setup ---
-	lsm = lsm6ds3tr.New(i2c)
-	err = lsm.Configure(lsm6ds3tr.Configuration{
-		AccelRange:      lsm6ds3tr.ACCEL_8G,
-		AccelSampleRate: lsm6ds3tr.ACCEL_SR_416,
-		GyroRange:       lsm6ds3tr.GYRO_1000DPS,
-		GyroSampleRate:  lsm6ds3tr.GYRO_SR_416,
-	})
-	if err != nil {
+	// Initialize all hardware
+	if err := InitHardware(hw); err != nil {
+		println("CRITICAL: Hardware initialization failed:", err)
+		// Enter error loop - LED will show error state
 		for {
-			println("Failed to configure LSM6DS3TR:", err.Error())
 			time.Sleep(time.Second)
 		}
 	}
-	if !lsm.Connected() {
-		println("LSM6DS3TR not connected")
-		time.Sleep(time.Second)
-		return
-	}
-	println("LSM6DS3TR configured and initialized.")
 
 	// --- Filter and Controller Setup ---
 	kf = NewKalmanFilter(dt)
@@ -199,7 +133,6 @@ func main() {
 			LastPacketTime = time.Now()
 			// A complete packet has been received.
 			Channels = processReceiverPacket(packet)
-			// println("Received and processed a new receiver packet.")
 
 		default:
 			// Control loop at fixed intervals
@@ -218,6 +151,8 @@ func main() {
 			// The state machine from previous versions is now the default case
 			switch flightState {
 			case CALIBRATION:
+				hw.LED.SetState(CALIBRATE)
+				hw.LED.Update()
 				// Keep outputs at neutral and ESC at zero
 				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 				setESC(MIN_PULSE_WIDTH_US)
@@ -230,15 +165,21 @@ func main() {
 
 				lastFlightState = flightState
 				flightState = FLIGHT_MODE
+				hw.LED.SetState(LEDOFF)
+				hw.LED.Update()
 
 			case FLIGHT_MODE:
 				// Switch to armed mode if CH5 is high
 				// Check for arm/disarm first every loop
 				if Channels[ArmChannel] <= HIGH_RX_VALUE {
-					println("Disarmed.")
+					// println("Disarmed.")
+					hw.LED.SetState(DISARMED)
+					hw.LED.Update()
 					armed = false
 				} else {
-					println("Armed!")
+					// println("Armed!")
+					hw.LED.SetState(ARMED)
+					hw.LED.Update()
 					armed = true
 				}
 
@@ -248,6 +189,17 @@ func main() {
 					break
 				}
 
+				// Handle manual mode
+				if Channels[ManualModeChannel] > HIGH_RX_VALUE {
+					// Manual mode
+					leftPulse := uint32(Channels[AileronChannel])
+					rightPulse := uint32(Channels[ElevatorChannel])
+					setServo(leftPulse, rightPulse)
+					setESC(uint32(Channels[ThrottleChannel]))
+					pitchPID.Reset()
+					rollPID.Reset()
+					break
+				}
 				// In stabilized mode, use IMU, Kalman filter and PID controllers to stabilize the aircraft.
 
 				// Use the Kalman filter to fuse sensor data and get a stable attitude estimate.
@@ -308,18 +260,11 @@ func main() {
 					setESC(MIN_PULSE_WIDTH_US)
 				}
 
-				// Print status and sensor data for debugging
-				println()
-				println(desiredPitchRate, pitchOutput, desiredRollRate, rollOutput)
-				println()
-				println(Channels[ElevatorChannel], Channels[AileronChannel]) // , Channels[ThrottleChannel])
-				println(leftPulse, rightPulse)
-				println()
-
 			case FAILSAFE:
 				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 				setESC(MIN_PULSE_WIDTH_US)
-
+				hw.LED.SetState(FAILSAFED)
+				hw.LED.Update()
 				if time.Since(LastPacketTime).Milliseconds() <= FAILSAFE_TIMEOUT_MS {
 					lastFlightState = flightState
 					flightState = FLIGHT_MODE
