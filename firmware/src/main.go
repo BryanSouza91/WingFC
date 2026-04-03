@@ -86,7 +86,7 @@ func main() {
 		UART:        NewMachineUART(machine.DefaultUART),
 		ServoPWM:    NewMachinePWM0(machine.PWM0),
 		ESCPWM:      NewMachinePWM1(machine.PWM1),
-		LED:         NewLEDController(),
+		LED:         NewLEDController(machine.LED_RED, machine.LED_GREEN, machine.LED_BLUE),
 		PWM_CH1_PIN: machine.D0, // Aileron Servo
 		PWM_CH2_PIN: machine.D1, // Elevator Servo
 		PWM_CH3_PIN: machine.D2, // ESC
