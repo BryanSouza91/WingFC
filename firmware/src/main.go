@@ -84,8 +84,8 @@ func main() {
 	hw = &FC_Hardware{
 		I2C:         NewMachineI2C(machine.I2C0),
 		UART:        NewMachineUART(machine.DefaultUART),
-		ServoPWM:    NewMachinePWM0(machine.PWM0),
-		ESCPWM:      NewMachinePWM1(machine.PWM1),
+		ServoPWM:    NewMachinePWM(machine.PWM0),
+		ESCPWM:      NewMachinePWM(machine.PWM1),
 		LED:         NewLEDController(machine.LED_RED, machine.LED_GREEN, machine.LED_BLUE),
 		PWM_CH1_PIN: machine.D0, // Aileron Servo
 		PWM_CH2_PIN: machine.D1, // Elevator Servo

@@ -53,20 +53,20 @@ func (m *MachineUART) Write(b byte) error {
 
 // === PWM Adapters ===
 
-// MachinePWM0 adapts *machine.PWM to the PWM interface.
-type MachinePWM0 struct {
+// MachinePWM adapts *machine.PWM to the PWM interface.
+type MachinePWM struct {
 	pwm *machine.PWM
 }
 
-func NewMachinePWM0(pwm *machine.PWM) *MachinePWM0 {
-	return &MachinePWM0{pwm: pwm}
+func NewMachinePWM(pwm *machine.PWM) *MachinePWM {
+	return &MachinePWM{pwm: pwm}
 }
 
-func (m *MachinePWM0) Configure(cfg machine.PWMConfig) error {
+func (m *MachinePWM) Configure(cfg machine.PWMConfig) error {
 	return m.pwm.Configure(cfg)
 }
 
-func (m *MachinePWM0) Channel(pin machine.Pin) (uint8, error) {
+func (m *MachinePWM) Channel(pin machine.Pin) (uint8, error) {
 	ch, err := m.pwm.Channel(pin)
 	if err != nil {
 		return 0, err
@@ -74,40 +74,11 @@ func (m *MachinePWM0) Channel(pin machine.Pin) (uint8, error) {
 	return ch, nil
 }
 
-func (m *MachinePWM0) Set(channel uint8, value uint32) {
+func (m *MachinePWM) Set(channel uint8, value uint32) {
 	m.pwm.Set(channel, value)
 }
 
-func (m *MachinePWM0) Top() uint32 {
-	return m.pwm.Top()
-}
-
-// MachinePWM1 adapts *machine.PWM to the PWM interface.
-type MachinePWM1 struct {
-	pwm *machine.PWM
-}
-
-func NewMachinePWM1(pwm *machine.PWM) *MachinePWM1 {
-	return &MachinePWM1{pwm: pwm}
-}
-
-func (m *MachinePWM1) Configure(cfg machine.PWMConfig) error {
-	return m.pwm.Configure(cfg)
-}
-
-func (m *MachinePWM1) Channel(pin machine.Pin) (uint8, error) {
-	ch, err := m.pwm.Channel(pin)
-	if err != nil {
-		return 0, err
-	}
-	return ch, nil
-}
-
-func (m *MachinePWM1) Set(channel uint8, value uint32) {
-	m.pwm.Set(channel, value)
-}
-
-func (m *MachinePWM1) Top() uint32 {
+func (m *MachinePWM) Top() uint32 {
 	return m.pwm.Top()
 }
 
