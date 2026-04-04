@@ -35,9 +35,9 @@ const (
 // readReceiver is a goroutine that reads iBus packets from the UART and sends them to a channel.
 // This function uses a state machine to ensure a complete packet is received before
 // being sent over the channel.
-func readReceiver(packetChan chan<- [IBUS_PACKET_SIZE]byte) {
+func readReceiver(uart UART, packetChan chan<- [IBUS_PACKET_SIZE]byte) {
 	// Access UART through the global hw instance
-	if hw == nil || hw.UART == nil {
+	if uart == nil {
 		return
 	}
 
@@ -46,7 +46,7 @@ func readReceiver(packetChan chan<- [IBUS_PACKET_SIZE]byte) {
 	payloadIndex := 0
 
 	for {
-		data, err := hw.UART.Read()
+		data, err := uart.Read()
 		if err != nil {
 			// If there's no data available, we can just continue.
 			// The goroutine will not block here.

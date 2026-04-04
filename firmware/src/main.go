@@ -116,7 +116,7 @@ func main() {
 	lastFlightState = CALIBRATION
 
 	// Start the goroutine to read receiver packets asynchronously.
-	go readReceiver(packetChan)
+	go readReceiver(hw.UART, packetChan)
 
 	// ticker to run the control loop at a fixed frequency matching Kalman filter.
 	ticker := time.NewTicker(time.Duration(dt * float64(time.Second)))

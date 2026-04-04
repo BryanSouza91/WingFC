@@ -51,9 +51,9 @@ const (
 // readReceiver is a goroutine that reads CRSF packets from the UART and sends them to a channel.
 // This function uses a state machine to ensure a complete packet is received before being passed on.
 // This function now accepts the channel and hardware instance as arguments.
-func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
+func readReceiver(uart UART, packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 	// Access UART through the global hw instance
-	if hw == nil || hw.UART == nil {
+	if uart == nil {
 		return
 	}
 
@@ -71,7 +71,7 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 	for {
 
 		// Note: The UART interface doesn't expose Buffered(), so we do a simple read instead
-		b, err := hw.UART.Read()
+		b, err := uart.Read()
 		if err != nil {
 			// A non-blocking read returns an error. We can simply continue.
 			time.Sleep(250 * time.Microsecond)
