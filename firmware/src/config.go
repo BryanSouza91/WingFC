@@ -38,6 +38,16 @@ const (
 
 	// High Rx channel value for arming/calibration
 	HIGH_RX_VALUE = 1800
+
+	// Left Elevon (Aileron) - servo travel limits and trim
+    LEFT_SERVO_MIN      = 1100  // Minimum pulse width (µs)
+    LEFT_SERVO_MAX      = 1900  // Maximum pulse width (µs)
+    LEFT_SERVO_SUBTRIM  = 0     // Neutral offset (µs), e.g., +50 moves servo toward max
+
+    // Right Elevon (Elevator) - servo travel limits and trim
+    RIGHT_SERVO_MIN     = 1100
+    RIGHT_SERVO_MAX     = 1900
+    RIGHT_SERVO_SUBTRIM = 0
 )
 
 // --- Flight Control Parameters ---

@@ -36,6 +36,11 @@ var (
 	calibStartTime  time.Time
 	armed           bool
 	err             error
+
+    // Dynamic subtrim offsets (can be adjusted via RC or parameters)
+    leftServoSubtrim  float64 = LEFT_SERVO_SUBTRIM
+    rightServoSubtrim float64 = RIGHT_SERVO_SUBTRIM
+)
 )
 
 // Define constants for sensor value conversions and PWM.
@@ -234,9 +239,13 @@ func main() {
 				leftElevon = mapRange(float64(leftElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
 				rightElevon = mapRange(float64(rightElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
 
-				// Constrain pulse widths to a valid range.
-				leftPulse := uint32(constrain(leftElevon, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US))
-				rightPulse := uint32(constrain(rightElevon, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US))
+				// Apply subtrim offsets
+				leftElevon += leftServoSubtrim
+				rightElevon += rightServoSubtrim
+
+				// Constrain to per-servo endpoints (replaces global MIN/MAX)
+				leftPulse := uint32(constrain(leftElevon, float64(LEFT_SERVO_MIN), float64(LEFT_SERVO_MAX)))
+				rightPulse := uint32(constrain(rightElevon, float64(RIGHT_SERVO_MIN), float64(RIGHT_SERVO_MAX)))
 
 				// Set the PWM signals for the servos.
 				setServo(leftPulse, rightPulse)
