@@ -1,3 +1,6 @@
+//go:build tinygo
+// +build tinygo
+
 // tuning.go - On-the-fly PID parameter tuning via RC channels
 
 package main
@@ -28,14 +31,15 @@ const (
 // Call this once per control loop when tuning is enabled.
 //
 // Usage:
-//   1. Set TuneParameterA and TuneParameterB to desired parameter IDs (1-6)
-//   2. Assign TuningChannelA/B to RC input channels
-//   3. Call UpdateTuning() in main control loop
-//   4. Adjust transmitter potentiometers to tune in real-time
+//  1. Set TuneParameterA and TuneParameterB to desired parameter IDs (1-6)
+//  2. Assign TuningChannelA/B to RC input channels
+//  3. Call UpdateTuning() in main control loop
+//  4. Adjust transmitter potentiometers to tune in real-time
 //
 // Parameter IDs:
-//   1: Pitch P (Kp)      3: Pitch I (Ki)      5: Pitch D (Kd)
-//   2: Roll P (Kp)       4: Roll I (Ki)       6: Roll D (Kd)
+//
+//	1: Pitch P (Kp)      3: Pitch I (Ki)      5: Pitch D (Kd)
+//	2: Roll P (Kp)       4: Roll I (Ki)       6: Roll D (Kd)
 func UpdateTuning() {
 	// Tune Parameter A via Channel A
 	if TuneParameterA > 0 && TuneParameterA <= 6 {

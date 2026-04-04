@@ -1,35 +1,33 @@
-//go:build tinygo
-// +build tinygo
+// +build !tinygo
+// This file provides test-safe interface definitions when not compiling for TinyGo
 
 package main
 
-import "machine"
-
 // DigitalPin defines the interface for basic GPIO operations.
 type DigitalPin interface {
-	Configure(config machine.PinConfig)
+	Configure(config interface{})
 	High()
 	Low()
 }
 
 // UART defines the interface for serial communication.
 type UART interface {
-	Configure(machine.UARTConfig) error
+	Configure(config interface{}) error
 	Read() (byte, error)
 	Write(b byte) error
 }
 
 // PWM defines the interface for PWM control.
 type PWM interface {
-	Configure(machine.PWMConfig) error
-	Channel(pin machine.Pin) (uint8, error)
+	Configure(config interface{}) error
+	Channel(pin interface{}) (uint8, error)
 	Set(channel uint8, value uint32)
 	Top() uint32
 }
 
 // I2C defines the interface for I2C communication.
 type I2C interface {
-	Configure(machine.I2CConfig) error
+	Configure(config interface{}) error
 	Tx(addr uint16, tx []byte, rx []byte) error
 }
 

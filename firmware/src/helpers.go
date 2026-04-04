@@ -1,3 +1,6 @@
+//go:build tinygo
+// +build tinygo
+
 package main
 
 // Read raw IMU data from the LSM6DS3TR sensor and apply a low-pass filter.

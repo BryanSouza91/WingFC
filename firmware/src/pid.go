@@ -56,6 +56,12 @@ func NewPIDController(Kp, Ki, Kd float64) *PIDController {
 //	P = Kp [1/1] × currentError [rad/s] → [rad/s]
 //	I = Ki [1/s] × integral [rad] → [rad/s]
 //	D = Kd [1/1] × (error_rate [rad/s²] / dt⁻¹ [s⁻¹]) → [rad/s]
+
+// For rate control with [rad/s] error:
+// Kp should be dimensionless (typically 0.1-5.0)
+// Ki should be [1/s] (typically 0.01-0.5)
+// Kd should be dimensionless (typically 0.01-1.0)
+
 func (pid *PIDController) Update(currentError, dt float64) float64 {
 	// Proportional term: Kp × error[rad/s] → [rad/s]
 	proportional := pid.Kp * currentError
