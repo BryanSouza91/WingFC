@@ -12,18 +12,18 @@ The following logic represents the core operational flow of the main.go entry po
 
 ## **Logic Breakdown**
 
-### **1\. Initialization & Safety**
+### **1. Initialization & Safety**
 
 * **Hardware Setup:** Configures the Seeed Studio Xiao nRF52840 Sense pins for I2C (LSM6DS3TR-C IMU/Magnetometer), UART (IBUS/CRSF/ELRS), UART2 (GPS), and PWM (Servos/ESC).  
 * **Watchdog:** A 1-second hardware watchdog triggers a system reset if the main loop hangs.
 
-### **2\. State Machine**
+### **2. State Machine**
 
 * **CALIBRATION:** Finds gyro bias while stationary to prevent PID "drift." A magnetometer is highly recommended for yaw stabilization.   
-* **FAILSAFE:** Centers surfaces and cuts power if connection is lost for \>500ms.  
-* **FLIGHT\_MODE:** Monitors arming status and toggles between stabilized and manual control.
+* **FAILSAFE:** Centers surfaces and cuts power if connection is lost for >500ms.  
+* **FLIGHT_MODE:** Monitors arming status and toggles between stabilized and manual control.
 
-### **3\. Stabilized Control Loop (200Hz)**
+### **3. Stabilized Control Loop (200Hz)**
 
 * **Sensor Fusion:** Kalman filter fuses accelerometer and gyroscope data for a stable attitude estimate.  
 * **PID Control:** Maps RC stick positions to a "Desired Rate" and calculates the error against the "Actual Rate" from the IMU.  
