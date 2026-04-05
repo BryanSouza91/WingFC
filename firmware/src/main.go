@@ -1,8 +1,8 @@
 package main
 
 import (
-	"machine"
 	math "github.com/orsinium-labs/tinymath"
+	"machine"
 	"time"
 )
 

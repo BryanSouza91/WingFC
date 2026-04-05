@@ -59,12 +59,12 @@ const (
 	MAX_ROLL_RATE_DEG = 600
 
 	// Weighting for combining gyro/accel with input
-	PID_WEIGHT = 0.5
+	PID_WEIGHT float32 = 0.5
 
 	// LPF alpha for gyro/accel fusion
-	LPF_ALPHA = 0.2
+	LPF_ALPHA float32 = 0.2
 
 	// PID gains (P, I, D) for the pitch and roll controllers
-	pP, pI, pD = 1., 0.1, 0.01
-	rP, rI, rD = 1., 0.1, 0.01
+	pP, pI, pD float32 = 1., 0.1, 0.01
+	rP, rI, rD float32 = 1., 0.1, 0.01
 )
