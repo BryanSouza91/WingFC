@@ -15,6 +15,11 @@ func readLSMData() {
 		println("Error reading rotation:", err)
 	}
 
+	var (
+		filteredAccelX, filteredAccelY, filteredAccelZ int32
+		filteredGyroX, filteredGyroY, filteredGyroZ    int32
+	)
+	
 	switch LPF_BITSHIFT_LEVEL {
     case 0:
         // No filtering
