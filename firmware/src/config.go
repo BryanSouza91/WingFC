@@ -14,7 +14,7 @@ const (
 
 // --- Board Orientation ---
 // 0: Default, 1: CW90, 2: CW180, 3: CW270, 4: flip, 5: flipCW90, 6: flipCW180, 7: flipCW270
-const orientation = 0
+const ORIENTATION = 0
 
 // --- Receiver Configuration ---
 // --- Channel Mappings ---

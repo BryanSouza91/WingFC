@@ -6,6 +6,20 @@ import (
 
 // IMU Struct
 type IMU struct {
+	rawAccelX int16
+	rawAccelY int16
+	rawAccelZ int16
+	rawGyroX  int16
+	rawGyroY  int16
+	rawGyroZ  int16
+
+	AccelXBias float32
+	AccelYBias float32
+	AccelZBias float32
+	GyroXBias  float32
+	GyroYBias  float32
+	GyroZBias  float32
+
 	AccelX float32
 	AccelY float32
 	AccelZ float32

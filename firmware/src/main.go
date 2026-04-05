@@ -17,17 +17,12 @@ var (
 	hw *FC_Hardware
 
 	// Control system components
-	pitchPID *PIDController
-	rollPID  *PIDController
-	dt       float32 = 0.005 // 5ms loop time for 200Hz control loop
-	kf       *KalmanFilter
-	imuData  IMU
-
-	// IMU calibration
-	accelXSum, accelYSum, accelZSum, accelBiasX, accelBiasY, accelBiasZ float32 = 0., 0., 0., 0., 0., 0.
-	gyroXSum, gyroYSum, gyroZSum, gyroBiasX, gyroBiasY, gyroBiasZ       float32 = 0., 0., 0., 0., 0., 0.
-	xA, yA, zA, xG, yG, zG                                              int32
-	desiredPitchRate, desiredRollRate                                   float32
+	pitchPID                          *PIDController
+	rollPID                           *PIDController
+	dt                                float32 = 0.005 // 5ms loop time for 200Hz control loop
+	kf                                *KalmanFilter
+	imuData                           IMU
+	desiredPitchRate, desiredRollRate float32
 
 	// RC Channels
 	Channels        [NumChannels]uint16
@@ -149,8 +144,8 @@ func main() {
 			}
 
 			// Read and process IMU data every loop to have the freshest data available.
-			readLSMData()
-			processLSMData()
+			readIMUData()
+			processIMUData()
 
 			// The state machine from previous versions is now the default case
 			switch flightState {
@@ -165,7 +160,7 @@ func main() {
 				println("Initial calibration")
 				println("Calibrating Gyro... Keep gyro still!")
 				time.Sleep(time.Second)
-				calibrate()
+				calibrateIMU()
 
 				lastFlightState = flightState
 				flightState = FLIGHT_MODE
