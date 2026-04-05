@@ -61,8 +61,11 @@ const (
 	// Weighting for combining gyro/accel with input
 	PID_WEIGHT float32 = 0.5
 
-	// LPF alpha for gyro/accel fusion
-	LPF_ALPHA float32 = 0.2
+	// LPF bit-shift levels for integer filtering
+    // Level 0: No filtering (full weight to new value)
+    // Level 1: >> 2 shift (alpha ≈ 0.25, more responsive)
+    // Level 2: >> 3 shift (alpha ≈ 0.125, more smoothing)
+    LPF_BITSHIFT_LEVEL = 1  // Choose: 0, 1, or 2
 
 	// PID gains (P, I, D) for the pitch and roll controllers
 	pP, pI, pD float32 = 1., 0.1, 0.01

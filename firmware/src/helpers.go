@@ -15,13 +15,43 @@ func readLSMData() {
 		println("Error reading rotation:", err)
 	}
 
+	switch LPF_BITSHIFT_LEVEL {
+    case 0:
+        // No filtering
+        filteredAccelX = int32(rawAccelX)
+        filteredAccelY = int32(rawAccelY)
+		filteredAccelZ = int32(rawAccelZ)
+		filteredGyroX = int32(rawGyroX)
+		filteredGyroY = int32(rawGyroY)
+		filteredGyroZ = int32(rawGyroZ)
+    case 1:
+        // >> 2 shift
+        filteredAccelX = filteredAccelX - (filteredAccelX >> 2) + (int32(rawAccelX) >> 2)
+        filteredAccelY = filteredAccelY - (filteredAccelY >> 2) + (int32(rawAccelY) >> 2)
+		filteredAccelZ = filteredAccelZ - (filteredAccelZ >> 2) + (int32(rawAccelZ) >> 2)
+		filteredGyroX = filteredGyroX - (filteredGyroX >> 2) + (int32(rawGyroX) >> 2)
+		filteredGyroY = filteredGyroY - (filteredGyroY >> 2) + (int32(rawGyroY) >> 2)
+		filteredGyroZ = filteredGyroZ - (filteredGyroZ >> 2) + (int32(rawGyroZ) >> 2)
+	case 2:
+		// >> 3 shift
+		filteredAccelX = filteredAccelX - (filteredAccelX >> 3) + (int32(rawAccelX) >> 3)
+		filteredAccelY = filteredAccelY - (filteredAccelY >> 3) + (int32(rawAccelY) >> 3)
+		filteredAccelZ = filteredAccelZ - (filteredAccelZ >> 3) + (int32(rawAccelZ) >> 3)
+		filteredGyroX = filteredGyroX - (filteredGyroX >> 3) + (int32(rawGyroX) >> 3)
+		filteredGyroY = filteredGyroY - (filteredGyroY >> 3) + (int32(rawGyroY) >> 3)
+		filteredGyroZ = filteredGyroZ - (filteredGyroZ >> 3) + (int32(rawGyroZ) >> 3)
+	
+    }
+
+
 	// Low-pass filter
-	imuData.AccelX += LPF_ALPHA * (float32(rawAccelX)*microGToMS2 - imuData.AccelX)
-	imuData.AccelY += LPF_ALPHA * (float32(rawAccelY)*microGToMS2 - imuData.AccelY)
-	imuData.AccelZ += LPF_ALPHA * (float32(rawAccelZ)*microGToMS2 - imuData.AccelZ)
-	imuData.GyroX += LPF_ALPHA * (float32(rawGyroX)*microDPSToRadS - imuData.GyroX)
-	imuData.GyroY += LPF_ALPHA * (float32(rawGyroY)*microDPSToRadS - imuData.GyroY)
-	imuData.GyroZ += LPF_ALPHA * (float32(rawGyroZ)*microDPSToRadS - imuData.GyroZ)
+	 // Only convert to float at the end
+    imuData.AccelX = float32(filteredAccelX) * microGToMS2
+	imuData.AccelY = float32(filteredAccelY) * microGToMS2
+	imuData.AccelZ = float32(filteredAccelZ) * microGToMS2
+	imuData.GyroX = float32(filteredGyroX) * microDPSToRadS
+	imuData.GyroY = float32(filteredGyroY) * microDPSToRadS
+	imuData.GyroZ = float32(filteredGyroZ) * microDPSToRadS
 }
 
 // Process the raw IMU data by applying calibration offsets and computing roll/pitch angles.
