@@ -17,11 +17,11 @@ const (
 	TuningChannelB = 5 // CH6 (aux channel)
 
 	// Parameter ranges (adjusted via stick position 988-2012)
-	TuneParameterAmin = 0.1
-	TuneParameterAmax = 2.0
+	TuneParameterAmin float32 = 0.1
+	TuneParameterAmax float32 = 2.0
 
-	TuneParameterBmin = 0.01
-	TuneParameterBmax = 0.5
+	TuneParameterBmin float32 = 0.01
+	TuneParameterBmax float32 = 0.5
 )
 
 // UpdateTuning adjusts PID gains and other parameters based on RC input.
@@ -40,7 +40,7 @@ const (
 func UpdateTuning() {
 	// Tune Parameter A via Channel A
 	if TuneParameterA > 0 && TuneParameterA <= 6 {
-		value := mapRange(float64(Channels[TuningChannelA]), MIN_RX_VALUE, MAX_RX_VALUE,
+		value := mapRange(float32(Channels[TuningChannelA]), MIN_RX_VALUE, MAX_RX_VALUE,
 			TuneParameterAmin, TuneParameterAmax)
 
 		switch TuneParameterA {
@@ -61,7 +61,7 @@ func UpdateTuning() {
 
 	// Tune Parameter B via Channel B
 	if TuneParameterB > 0 && TuneParameterB <= 6 {
-		value := mapRange(float64(Channels[TuningChannelB]), MIN_RX_VALUE, MAX_RX_VALUE,
+		value := mapRange(float32(Channels[TuningChannelB]), MIN_RX_VALUE, MAX_RX_VALUE,
 			TuneParameterBmin, TuneParameterBmax)
 
 		switch TuneParameterB {

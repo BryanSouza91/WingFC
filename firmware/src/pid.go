@@ -25,13 +25,13 @@ package main
 //     Typical range: 0.01-0.5
 //     Kd ≈ 0.1-0.25 × Kp (adds damping without oscillation)
 type PIDController struct {
-	Kp, Ki, Kd float64 // Gains with units as documented above
-	prevError  float64 // Previous error [rad/s] for derivative calculation
-	integral   float64 // Accumulated integral [rad] over time
+	Kp, Ki, Kd float32 // Gains with units as documented above
+	prevError  float32 // Previous error [rad/s] for derivative calculation
+	integral   float32 // Accumulated integral [rad] over time
 }
 
 // NewPIDController creates and initializes a new PIDController.
-func NewPIDController(Kp, Ki, Kd float64) *PIDController {
+func NewPIDController(Kp, Ki, Kd float32) *PIDController {
 	return &PIDController{
 		Kp: Kp,
 		Ki: Ki,
@@ -56,7 +56,7 @@ func NewPIDController(Kp, Ki, Kd float64) *PIDController {
 //	P = Kp [1/1] × currentError [rad/s] → [rad/s]
 //	I = Ki [1/s] × integral [rad] → [rad/s]
 //	D = Kd [1/1] × (error_rate [rad/s²] / dt⁻¹ [s⁻¹]) → [rad/s]
-func (pid *PIDController) Update(currentError, dt float64) float64 {
+func (pid *PIDController) Update(currentError, dt float32) float32 {
 	// Proportional term: Kp × error[rad/s] → [rad/s]
 	proportional := pid.Kp * currentError
 

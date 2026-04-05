@@ -2,7 +2,7 @@ package main
 
 import (
 	"machine"
-	"math"
+	math "github.com/orsinium-labs/tinymath"
 	"time"
 )
 
@@ -19,15 +19,15 @@ var (
 	// Control system components
 	pitchPID *PIDController
 	rollPID  *PIDController
-	dt       = 0.005 // 5ms loop time for 200Hz control loop
+	dt       float32 = 0.005 // 5ms loop time for 200Hz control loop
 	kf       *KalmanFilter
 	imuData  IMU
 
 	// IMU calibration
-	accelXSum, accelYSum, accelZSum, accelBiasX, accelBiasY, accelBiasZ float64 = 0., 0., 0., 0., 0., 0.
-	gyroXSum, gyroYSum, gyroZSum, gyroBiasX, gyroBiasY, gyroBiasZ       float64 = 0., 0., 0., 0., 0., 0.
+	accelXSum, accelYSum, accelZSum, accelBiasX, accelBiasY, accelBiasZ float32 = 0., 0., 0., 0., 0., 0.
+	gyroXSum, gyroYSum, gyroZSum, gyroBiasX, gyroBiasY, gyroBiasZ       float32 = 0., 0., 0., 0., 0., 0.
 	xA, yA, zA, xG, yG, zG                                              int32
-	desiredPitchRate, desiredRollRate                                   float64
+	desiredPitchRate, desiredRollRate                                   float32
 
 	// RC Channels
 	Channels        [NumChannels]uint16
@@ -38,15 +38,15 @@ var (
 	err             error
 
 	// Dynamic subtrim offsets (can be adjusted via RC or parameters)
-	leftServoSubtrim  float64 = LEFT_SERVO_SUBTRIM
-	rightServoSubtrim float64 = RIGHT_SERVO_SUBTRIM
+	leftServoSubtrim  float32 = LEFT_SERVO_SUBTRIM
+	rightServoSubtrim float32 = RIGHT_SERVO_SUBTRIM
 )
 
 // Define constants for sensor value conversions and PWM.
 const (
 	// Convert sensor values to radians for calculations
-	microGToMS2    = 9.80665 / 1e6
-	microDPSToRadS = math.Pi / (180 * 1e6)
+	microGToMS2    float32 = 9.80665 / 1e6
+	microDPSToRadS float32 = math.Pi / (180 * 1e6)
 
 	// PWM pulse width constants
 	MIN_PULSE_WIDTH_US = 1000
@@ -58,8 +58,8 @@ const (
 	NEUTRAL_RX_VALUE = 1500
 
 	// Calculated constants for PID control
-	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * math.Pi / 180
-	MAX_PITCH_RATE = MAX_PITCH_RATE_DEG * math.Pi / 180
+	MAX_ROLL_RATE  float32 = MAX_ROLL_RATE_DEG * math.Pi / 180
+	MAX_PITCH_RATE float32 = MAX_PITCH_RATE_DEG * math.Pi / 180
 
 	// Fail-safe constants
 	FAILSAFE_TIMEOUT_MS = 500
@@ -123,7 +123,7 @@ func main() {
 	go readReceiver(hw.UART, packetChan)
 
 	// ticker to run the control loop at a fixed frequency matching Kalman filter.
-	ticker := time.NewTicker(time.Duration(dt * float64(time.Second)))
+	ticker := time.NewTicker(time.Duration(dt * float32(time.Second)))
 	defer ticker.Stop()
 
 	watchdog.Start()
@@ -211,8 +211,8 @@ func main() {
 				kf.Update(imuData.Pitch, imuData.Roll)
 
 				// Get desired roll and pitch rates from the RC receiver.
-				desiredPitchRate = mapRange(float64(Channels[ElevatorChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
-				desiredRollRate = mapRange(float64(Channels[AileronChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
+				desiredPitchRate = mapRange(float32(Channels[ElevatorChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
+				desiredRollRate = mapRange(float32(Channels[AileronChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
 
 				// Apply deadband to avoid small unwanted movements
 				if math.Abs(desiredPitchRate) < DEADBAND*math.Pi/180 {
@@ -235,16 +235,16 @@ func main() {
 				rightElevon := pitchOutput - rollOutput
 
 				// Convert control outputs to PWM pulse widths.
-				leftElevon = mapRange(float64(leftElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
-				rightElevon = mapRange(float64(rightElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+				leftElevon = mapRange(float32(leftElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+				rightElevon = mapRange(float32(rightElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
 
 				// Apply subtrim offsets
 				leftElevon += leftServoSubtrim
 				rightElevon += rightServoSubtrim
 
 				// Constrain to per-servo endpoints (replaces global MIN/MAX)
-				leftPulse := uint32(constrain(leftElevon, float64(LEFT_SERVO_MIN), float64(LEFT_SERVO_MAX)))
-				rightPulse := uint32(constrain(rightElevon, float64(RIGHT_SERVO_MIN), float64(RIGHT_SERVO_MAX)))
+				leftPulse := uint32(constrain(leftElevon, float32(LEFT_SERVO_MIN), float32(LEFT_SERVO_MAX)))
+				rightPulse := uint32(constrain(rightElevon, float32(RIGHT_SERVO_MIN), float32(RIGHT_SERVO_MAX)))
 
 				// Set the PWM signals for the servos.
 				setServo(leftPulse, rightPulse)

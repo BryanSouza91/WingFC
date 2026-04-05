@@ -16,12 +16,12 @@ func readLSMData() {
 	}
 
 	// Low-pass filter
-	imuData.AccelX += LPF_ALPHA * (float64(rawAccelX)*microGToMS2 - imuData.AccelX)
-	imuData.AccelY += LPF_ALPHA * (float64(rawAccelY)*microGToMS2 - imuData.AccelY)
-	imuData.AccelZ += LPF_ALPHA * (float64(rawAccelZ)*microGToMS2 - imuData.AccelZ)
-	imuData.GyroX += LPF_ALPHA * (float64(rawGyroX)*microDPSToRadS - imuData.GyroX)
-	imuData.GyroY += LPF_ALPHA * (float64(rawGyroY)*microDPSToRadS - imuData.GyroY)
-	imuData.GyroZ += LPF_ALPHA * (float64(rawGyroZ)*microDPSToRadS - imuData.GyroZ)
+	imuData.AccelX += LPF_ALPHA * (float32(rawAccelX)*microGToMS2 - imuData.AccelX)
+	imuData.AccelY += LPF_ALPHA * (float32(rawAccelY)*microGToMS2 - imuData.AccelY)
+	imuData.AccelZ += LPF_ALPHA * (float32(rawAccelZ)*microGToMS2 - imuData.AccelZ)
+	imuData.GyroX += LPF_ALPHA * (float32(rawGyroX)*microDPSToRadS - imuData.GyroX)
+	imuData.GyroY += LPF_ALPHA * (float32(rawGyroY)*microDPSToRadS - imuData.GyroY)
+	imuData.GyroZ += LPF_ALPHA * (float32(rawGyroZ)*microDPSToRadS - imuData.GyroZ)
 }
 
 // Process the raw IMU data by applying calibration offsets and computing roll/pitch angles.
@@ -65,7 +65,7 @@ func calibrate() {
 }
 
 // Helper function to constrain a value within min and max bounds.
-func constrain(value, min, max float64) float64 {
+func constrain[T uint16 | uint32 | float32](value, min, max T) T {
 	if value < min {
 		return min
 	}
@@ -76,7 +76,7 @@ func constrain(value, min, max float64) float64 {
 }
 
 // Helper function to map a value from one range to another.
-func mapRange[T uint16 | uint32 | float64](value, fromMin, fromMax, toMin, toMax T) T {
+func mapRange[T uint16 | uint32 | float32](value, fromMin, fromMax, toMin, toMax T) T {
 	return (value-fromMin)/(fromMax-fromMin)*(toMax-toMin) + toMin
 }
 

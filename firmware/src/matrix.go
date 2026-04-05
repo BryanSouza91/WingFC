@@ -2,10 +2,10 @@ package main
 
 // --- Simple Matrix Library for the Kalman Filter Library ---
 
-// Matrix represents a simple 2D float64 matrix.
+// Matrix represents a simple 2D float32 matrix.
 type Matrix struct {
 	rows, cols int
-	data       []float64
+	data       []float32
 }
 
 // NewMatrix creates a new matrix of the given size.
@@ -13,17 +13,17 @@ func NewMatrix(rows, cols int) *Matrix {
 	return &Matrix{
 		rows: rows,
 		cols: cols,
-		data: make([]float64, rows*cols),
+		data: make([]float32, rows*cols),
 	}
 }
 
 // At returns the value at a specific row and column.
-func (m *Matrix) At(r, c int) float64 {
+func (m *Matrix) At(r, c int) float32 {
 	return m.data[r*m.cols+c]
 }
 
 // Set sets the value at a specific row and column.
-func (m *Matrix) Set(r, c int, val float64) {
+func (m *Matrix) Set(r, c int, val float32) {
 	m.data[r*m.cols+c] = val
 }
 
@@ -62,7 +62,7 @@ func (m *Matrix) Multiply(other *Matrix) *Matrix {
 	res := NewMatrix(m.rows, other.cols)
 	for i := 0; i < m.rows; i++ {
 		for j := 0; j < other.cols; j++ {
-			sum := 0.0
+			var sum float32 = 0.0
 			for k := 0; k < m.cols; k++ {
 				sum += m.At(i, k) * other.At(k, j)
 			}
@@ -150,7 +150,7 @@ func (m *Matrix) inverse3x3() *Matrix {
 // Matrix2x2 represents a specialized 2x2 matrix for Kalman filter operations.
 // Uses fixed array storage for better cache locality and zero heap allocation.
 type Matrix2x2 struct {
-	data [4]float64 // Row-major order: [0,0], [0,1], [1,0], [1,1]
+	data [4]float32 // Row-major order: [0,0], [0,1], [1,0], [1,1]
 }
 
 // NewMatrix2x2 creates a new zero-initialized 2x2 matrix.
@@ -159,12 +159,12 @@ func NewMatrix2x2() *Matrix2x2 {
 }
 
 // At returns the value at a specific row and column.
-func (m *Matrix2x2) At(r, c int) float64 {
+func (m *Matrix2x2) At(r, c int) float32 {
 	return m.data[r*2+c]
 }
 
 // Set sets the value at a specific row and column.
-func (m *Matrix2x2) Set(r, c int, val float64) {
+func (m *Matrix2x2) Set(r, c int, val float32) {
 	m.data[r*2+c] = val
 }
 
@@ -231,8 +231,8 @@ func (m *Matrix2x2) Inverse() *Matrix2x2 {
 }
 
 // MultiplyVector2x2 multiplies this 2x2 matrix by a 2-element vector and returns the result.
-func (m *Matrix2x2) MultiplyVector(v [2]float64) [2]float64 {
-	return [2]float64{
+func (m *Matrix2x2) MultiplyVector(v [2]float32) [2]float32 {
+	return [2]float32{
 		m.data[0]*v[0] + m.data[1]*v[1],
 		m.data[2]*v[0] + m.data[3]*v[1],
 	}
@@ -250,7 +250,7 @@ func (m *Matrix2x2) Multiply2x1(v *Matrix2x1) *Matrix2x1 {
 
 // Matrix2x1 represents a specialized 2x1 matrix (column vector) for Kalman filter state vectors.
 type Matrix2x1 struct {
-	data [2]float64 // [row0, row1]
+	data [2]float32 // [row0, row1]
 }
 
 // NewMatrix2x1 creates a new zero-initialized 2x1 matrix.
@@ -259,7 +259,7 @@ func NewMatrix2x1() *Matrix2x1 {
 }
 
 // At returns the value at a specific row.
-func (m *Matrix2x1) At(r, c int) float64 {
+func (m *Matrix2x1) At(r, c int) float32 {
 	if c != 0 {
 		panic("Column index for 2x1 matrix must be 0")
 	}
@@ -267,7 +267,7 @@ func (m *Matrix2x1) At(r, c int) float64 {
 }
 
 // Set sets the value at a specific row.
-func (m *Matrix2x1) Set(r, c int, val float64) {
+func (m *Matrix2x1) Set(r, c int, val float32) {
 	if c != 0 {
 		panic("Column index for 2x1 matrix must be 0")
 	}
@@ -297,7 +297,7 @@ func (m *Matrix2x1) Subtract(other *Matrix2x1) *Matrix2x1 {
 // Matrix3x3 represents a specialized 3x3 matrix for performance-critical operations.
 // Uses fixed array storage instead of slices for better cache locality and speed.
 type Matrix3x3 struct {
-	data [9]float64 // Row-major order: [0,0], [0,1], [0,2], [1,0], [1,1], [1,2], [2,0], [2,1], [2,2]
+	data [9]float32 // Row-major order: [0,0], [0,1], [0,2], [1,0], [1,1], [1,2], [2,0], [2,1], [2,2]
 }
 
 // NewMatrix3x3 creates a new zero-initialized 3x3 matrix.
@@ -306,12 +306,12 @@ func NewMatrix3x3() *Matrix3x3 {
 }
 
 // At returns the value at a specific row and column.
-func (m *Matrix3x3) At(r, c int) float64 {
+func (m *Matrix3x3) At(r, c int) float32 {
 	return m.data[r*3+c]
 }
 
 // Set sets the value at a specific row and column.
-func (m *Matrix3x3) Set(r, c int, val float64) {
+func (m *Matrix3x3) Set(r, c int, val float32) {
 	m.data[r*3+c] = val
 }
 
@@ -347,7 +347,7 @@ func (m *Matrix3x3) Multiply(other *Matrix3x3) *Matrix3x3 {
 	res := NewMatrix3x3()
 	for i := 0; i < 3; i++ {
 		for j := 0; j < 3; j++ {
-			sum := 0.0
+			var sum float32 = 0.0
 			for k := 0; k < 3; k++ {
 				sum += m.At(i, k) * other.At(k, j)
 			}
@@ -400,8 +400,8 @@ func (m *Matrix3x3) Inverse() *Matrix3x3 {
 
 // MultiplyVector multiplies this 3x3 matrix by a 3-element vector and returns the result.
 // This is optimized for vector transformation commonly needed in flight control.
-func (m *Matrix3x3) MultiplyVector(v [3]float64) [3]float64 {
-	return [3]float64{
+func (m *Matrix3x3) MultiplyVector(v [3]float32) [3]float32 {
+	return [3]float32{
 		m.data[0]*v[0] + m.data[1]*v[1] + m.data[2]*v[2],
 		m.data[3]*v[0] + m.data[4]*v[1] + m.data[5]*v[2],
 		m.data[6]*v[0] + m.data[7]*v[1] + m.data[8]*v[2],

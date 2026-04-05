@@ -17,11 +17,11 @@ type KalmanFilter struct {
 	F *Matrix2x2 // (2x2) State transition matrix
 	H *Matrix2x2 // (2x2) Observation matrix
 
-	dt float64 // Time step
+	dt float32 // Time step
 }
 
 // NewKalmanFilter creates and initializes a new optimized KalmanFilter.
-func NewKalmanFilter(dt float64) *KalmanFilter {
+func NewKalmanFilter(dt float32) *KalmanFilter {
 	// State vector: [pitch, roll] (2x1)
 	x := NewMatrix2x1()
 
@@ -53,7 +53,7 @@ func NewKalmanFilter(dt float64) *KalmanFilter {
 }
 
 // Predict updates the state and covariance using the control inputs from the gyroscope.
-func (kf *KalmanFilter) Predict(gyroX, gyroY float64) {
+func (kf *KalmanFilter) Predict(gyroX, gyroY float32) {
 	// Update the state transition matrix F.
 	// F is identity matrix in this model: x_new = x_old + gyro_rates * dt
 	kf.F.Set(0, 0, 1.0) // Pitch
@@ -77,7 +77,7 @@ func (kf *KalmanFilter) Predict(gyroX, gyroY float64) {
 }
 
 // Update corrects the state and covariance with a new measurement from the accelerometer.
-func (kf *KalmanFilter) Update(accelPitch, accelRoll float64) {
+func (kf *KalmanFilter) Update(accelPitch, accelRoll float32) {
 	// Measurement vector Z
 	z := NewMatrix2x1()
 	z.Set(0, 0, accelPitch)
