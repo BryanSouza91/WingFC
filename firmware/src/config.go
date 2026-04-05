@@ -12,6 +12,10 @@ const (
 	NumChannels = 18
 )
 
+// --- Board Orientation ---
+// 0: Default, 1: CW90, 2: CW180, 3: CW270, 4: flip, 5: flipCW90, 6: flipCW180, 7: flipCW270
+const orientation = 0
+
 // --- Receiver Configuration ---
 // --- Channel Mappings ---
 
@@ -20,7 +24,12 @@ const (
 	ElevatorChannel   = 1 // CH2
 	ThrottleChannel   = 2 // CH3
 	ArmChannel        = 4 // CH5
-	ManualModeChannel = 7 // CH8
+	ManualModeChannel = 5 // CH6
+
+	TuningChannelA = 6 // CH7 (aux channel)
+	TuningChannelB = 7 // CH8 (aux channel)
+	TuningChannelC = 8 // CH9 (aux channel)
+	TuningChannelD = 9 // CH10 (aux channel)
 )
 
 // Tuning Configuration
@@ -32,10 +41,8 @@ const (
 	// 5: Pitch D, 6: Roll D
 	TuneParameterA = 0 // Disabled by default
 	TuneParameterB = 0
-
-	// RC channels used for tuning (typically aux channels)
-	TuningChannelA = 4 // CH5 (aux channel)
-	TuningChannelB = 5 // CH6 (aux channel)
+	TuneParameterC = 0
+	TuneParameterD = 0
 
 	// Parameter ranges (adjusted via stick position 988-2012)
 	TuneParameterAmin float32 = 0.1
@@ -43,6 +50,12 @@ const (
 
 	TuneParameterBmin float32 = 0.01
 	TuneParameterBmax float32 = 0.5
+
+	TuneParameterCmin float32 = 0.001
+	TuneParameterCmax float32 = 0.1
+
+	TuneParameterDmin float32 = 0.001
+	TuneParameterDmax float32 = 0.1
 )
 
 // --- PWM Configuration ---

@@ -5,20 +5,56 @@ func readLSMData() {
 	if hw == nil || hw.IMU == nil {
 		return
 	}
+
+	var (
+		rawAccelX, rawAccelY, rawAccelZ int16
+		rawGyroX, rawGyroY, rawGyroZ    int16
+		rawAccelXout, rawAccelYout, rawAccelZout int16
+		rawGyroXout, rawGyroYout, rawGyroZout    int16
+
+		filteredAccelX, filteredAccelY, filteredAccelZ int32
+		filteredGyroX, filteredGyroY, filteredGyroZ    int32
+
+		err error
+	)
+
 	// Read raw sensor data from the IMU
-	rawAccelX, rawAccelY, rawAccelZ, err := hw.IMU.ReadAccel()
+	rawAccelX, rawAccelY, rawAccelZ, err = hw.IMU.ReadAccel()
 	if err != nil {
 		println("Error reading acceleration:", err)
 	}
-	rawGyroX, rawGyroY, rawGyroZ, err := hw.IMU.ReadGyro()
+	rawGyroX, rawGyroY, rawGyroZ, err = hw.IMU.ReadGyro()
 	if err != nil {
 		println("Error reading rotation:", err)
 	}
 
-	var (
-		filteredAccelX, filteredAccelY, filteredAccelZ int32
-		filteredGyroX, filteredGyroY, filteredGyroZ    int32
-	)
+	// Map imu data based on board orientation configuration
+	switch orientation {
+	case 1: // CW90
+		rawAccelXout, rawAccelYout, rawAccelZout = rawAccelY, -rawAccelX, rawAccelZ
+		rawGyroXout, rawGyroYout, rawGyroZout = rawGyroY, -rawGyroX, rawGyroZ
+	case 2: // CW180
+		rawAccelXout, rawAccelYout, rawAccelZout = -rawAccelX, -rawAccelY, rawAccelZ
+		rawGyroXout, rawGyroYout, rawGyroZout = -rawGyroX, -rawGyroY, rawGyroZ
+	case 3: // CW270
+		rawAccelXout, rawAccelYout, rawAccelZout = -rawAccelY, rawAccelX, rawAccelZ
+		rawGyroXout, rawGyroYout, rawGyroZout = -rawGyroY, rawGyroX, rawGyroZ
+	case 4: // flip
+		rawAccelXout, rawAccelYout, rawAccelZout = rawAccelX, -rawAccelY, -rawAccelZ
+		rawGyroXout, rawGyroYout, rawGyroZout = rawGyroX, -rawGyroY, -rawGyroZ
+	case 5: // flipCW90
+		rawAccelXout, rawAccelYout, rawAccelZout = -rawAccelY, -rawAccelX, -rawAccelZ
+		rawGyroXout, rawGyroYout, rawGyroZout = -rawGyroY, -rawGyroX, -rawGyroZ
+	case 6: // flipCW180
+		rawAccelXout, rawAccelYout, rawAccelZout = -rawAccelX, rawAccelY, -rawAccelZ
+		rawGyroXout, rawGyroYout, rawGyroZout = -rawGyroX, rawGyroY, -rawGyroZ
+	case 7: // flipCW270
+		rawAccelXout, rawAccelYout, rawAccelZout = rawAccelY, rawAccelX, -rawAccelZ
+		rawGyroXout, rawGyroYout, rawGyroZout = rawGyroY, rawGyroX, -rawGyroZ
+	default: // default
+		rawAccelXout, rawAccelYout, rawAccelZout = rawAccelX, rawAccelY, rawAccelZ
+		rawGyroXout, rawGyroYout, rawGyroZout = rawGyroX, rawGyroY, rawGyroZ
+	}
 
 	switch LPF_BITSHIFT_LEVEL {
 	case 0:
@@ -45,7 +81,6 @@ func readLSMData() {
 		filteredGyroX = filteredGyroX - (filteredGyroX >> 3) + (int32(rawGyroX) >> 3)
 		filteredGyroY = filteredGyroY - (filteredGyroY >> 3) + (int32(rawGyroY) >> 3)
 		filteredGyroZ = filteredGyroZ - (filteredGyroZ >> 3) + (int32(rawGyroZ) >> 3)
-
 	}
 
 	// Low-pass filter

@@ -57,6 +57,14 @@ func UpdateTuning() {
 			rollPID.Kd = value
 		}
 	}
+
+	if TuningChannelC >= 0 && TuningChannelC < NumChannels {
+		// Future expansion: use Channel C for additional parameters (e.g., PID weight, filter settings)
+	}
+
+	if TuningChannelD >= 0 && TuningChannelD < NumChannels {
+		// Future expansion: use Channel D for additional parameters (e.g., PID weight, filter settings)
+	}
 }
 
 // PrintTuningStatus outputs current gain values to serial for monitoring.
