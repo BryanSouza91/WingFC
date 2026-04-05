@@ -37,10 +37,9 @@ var (
 	armed           bool
 	err             error
 
-    // Dynamic subtrim offsets (can be adjusted via RC or parameters)
-    leftServoSubtrim  float64 = LEFT_SERVO_SUBTRIM
-    rightServoSubtrim float64 = RIGHT_SERVO_SUBTRIM
-)
+	// Dynamic subtrim offsets (can be adjusted via RC or parameters)
+	leftServoSubtrim  float64 = LEFT_SERVO_SUBTRIM
+	rightServoSubtrim float64 = RIGHT_SERVO_SUBTRIM
 )
 
 // Define constants for sensor value conversions and PWM.

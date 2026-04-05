@@ -47,6 +47,7 @@ func InitHardware(hw *FC_Hardware) error {
 	// Inject the adapters into the Logic Controller
 	// This satisfies the LEDUpdater interface requirement in FC_Hardware
 	hw.LED = NewLEDController(redAdapter, greenAdapter, blueAdapter)
+
 	// Initialize UART for receiver communication
 	if err := initUART(hw); err != nil {
 		hw.LED.SetState(LEDOFF)
