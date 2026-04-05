@@ -19,20 +19,20 @@ func readLSMData() {
 		filteredAccelX, filteredAccelY, filteredAccelZ int32
 		filteredGyroX, filteredGyroY, filteredGyroZ    int32
 	)
-	
+
 	switch LPF_BITSHIFT_LEVEL {
-    case 0:
-        // No filtering
-        filteredAccelX = int32(rawAccelX)
-        filteredAccelY = int32(rawAccelY)
+	case 0:
+		// No filtering
+		filteredAccelX = int32(rawAccelX)
+		filteredAccelY = int32(rawAccelY)
 		filteredAccelZ = int32(rawAccelZ)
 		filteredGyroX = int32(rawGyroX)
 		filteredGyroY = int32(rawGyroY)
 		filteredGyroZ = int32(rawGyroZ)
-    case 1:
-        // >> 2 shift
-        filteredAccelX = filteredAccelX - (filteredAccelX >> 2) + (int32(rawAccelX) >> 2)
-        filteredAccelY = filteredAccelY - (filteredAccelY >> 2) + (int32(rawAccelY) >> 2)
+	case 1:
+		// >> 2 shift
+		filteredAccelX = filteredAccelX - (filteredAccelX >> 2) + (int32(rawAccelX) >> 2)
+		filteredAccelY = filteredAccelY - (filteredAccelY >> 2) + (int32(rawAccelY) >> 2)
 		filteredAccelZ = filteredAccelZ - (filteredAccelZ >> 2) + (int32(rawAccelZ) >> 2)
 		filteredGyroX = filteredGyroX - (filteredGyroX >> 2) + (int32(rawGyroX) >> 2)
 		filteredGyroY = filteredGyroY - (filteredGyroY >> 2) + (int32(rawGyroY) >> 2)
@@ -45,13 +45,12 @@ func readLSMData() {
 		filteredGyroX = filteredGyroX - (filteredGyroX >> 3) + (int32(rawGyroX) >> 3)
 		filteredGyroY = filteredGyroY - (filteredGyroY >> 3) + (int32(rawGyroY) >> 3)
 		filteredGyroZ = filteredGyroZ - (filteredGyroZ >> 3) + (int32(rawGyroZ) >> 3)
-	
-    }
 
+	}
 
 	// Low-pass filter
-	 // Only convert to float at the end
-    imuData.AccelX = float32(filteredAccelX) * microGToMS2
+	// Only convert to float at the end
+	imuData.AccelX = float32(filteredAccelX) * microGToMS2
 	imuData.AccelY = float32(filteredAccelY) * microGToMS2
 	imuData.AccelZ = float32(filteredAccelZ) * microGToMS2
 	imuData.GyroX = float32(filteredGyroX) * microDPSToRadS
