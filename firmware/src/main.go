@@ -198,12 +198,25 @@ func main() {
 					// Manual mode
 					leftPulse := uint32(Channels[AileronChannel])
 					rightPulse := uint32(Channels[ElevatorChannel])
+
+					// Apply subtrim offsets
+					leftPulse += uint32(leftServoSubtrim)
+					rightPulse += uint32(rightServoSubtrim)
+
+					// Constrain to per-servo endpoints (replaces global MIN/MAX)
+					leftPulse = uint32(constrain(float32(leftPulse), float32(LEFT_SERVO_MIN), float32(LEFT_SERVO_MAX)))
+					rightPulse = uint32(constrain(float32(rightPulse), float32(RIGHT_SERVO_MIN), float32(RIGHT_SERVO_MAX)))
+
 					setServo(leftPulse, rightPulse)
 					setESC(uint32(Channels[ThrottleChannel]))
 					pitchPID.Reset()
 					rollPID.Reset()
 					break
 				}
+
+				// Apply real-time PID tuning if enabled
+				UpdateTuning()
+
 				// In stabilized mode, use IMU, Kalman filter and PID controllers to stabilize the aircraft.
 
 				// Use the Kalman filter to fuse sensor data and get a stable attitude estimate.

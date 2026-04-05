@@ -2,28 +2,6 @@
 
 package main
 
-// Tuning Configuration
-// Set TuneParameter to 0 to disable tuning, or 1-6 to enable
-const (
-	// Parameter selection (0 = disabled)
-	// 1: Pitch P, 2: Roll P
-	// 3: Pitch I, 4: Roll I
-	// 5: Pitch D, 6: Roll D
-	TuneParameterA = 0 // Disabled by default
-	TuneParameterB = 0
-
-	// RC channels used for tuning (typically aux channels)
-	TuningChannelA = 4 // CH5 (aux channel)
-	TuningChannelB = 5 // CH6 (aux channel)
-
-	// Parameter ranges (adjusted via stick position 988-2012)
-	TuneParameterAmin float32 = 0.1
-	TuneParameterAmax float32 = 2.0
-
-	TuneParameterBmin float32 = 0.01
-	TuneParameterBmax float32 = 0.5
-)
-
 // UpdateTuning adjusts PID gains and other parameters based on RC input.
 // Call this once per control loop when tuning is enabled.
 //
