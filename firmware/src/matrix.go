@@ -398,6 +398,17 @@ func (m *Matrix3x3) Inverse() *Matrix3x3 {
 	return res
 }
 
+// Multiply3x2 returns the product of this 3x3 matrix by a 3x2 matrix.
+func (m *Matrix3x3) Multiply3x2(other *Matrix3x2) *Matrix3x2 {
+	res := NewMatrix3x2()
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 2; j++ {
+			res.Set(i, j, m.At(i, 0)*other.At(0, j)+m.At(i, 1)*other.At(1, j)+m.At(i, 2)*other.At(2, j))
+		}
+	}
+	return res
+}
+
 // MultiplyVector multiplies this 3x3 matrix by a 3-element vector and returns the result.
 // This is optimized for vector transformation commonly needed in flight control.
 func (m *Matrix3x3) MultiplyVector(v [3]float32) [3]float32 {
@@ -406,4 +417,158 @@ func (m *Matrix3x3) MultiplyVector(v [3]float32) [3]float32 {
 		m.data[3]*v[0] + m.data[4]*v[1] + m.data[5]*v[2],
 		m.data[6]*v[0] + m.data[7]*v[1] + m.data[8]*v[2],
 	}
+}
+
+// --- Matrix3x2 ---
+
+// Matrix3x2 represents a specialized 3x2 matrix for Kalman filter observation matrices.
+type Matrix3x2 struct {
+	data [6]float32 // Row-major order: [0,0], [0,1], [1,0], [1,1], [2,0], [2,1]
+}
+
+// NewMatrix3x2 creates a new zero-initialized 3x2 matrix.
+func NewMatrix3x2() *Matrix3x2 {
+	return &Matrix3x2{}
+}
+
+// At returns the value at a specific row and column.
+func (m *Matrix3x2) At(r, c int) float32 {
+	return m.data[r*2+c]
+}
+
+// Set sets the value at a specific row and column.
+func (m *Matrix3x2) Set(r, c int, val float32) {
+	m.data[r*2+c] = val
+}
+
+// Multiply2x2 returns the product of this 3x2 matrix by a 2x2 matrix.
+func (m *Matrix3x2) Multiply2x2(other *Matrix2x2) *Matrix3x2 {
+	res := NewMatrix3x2()
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 2; j++ {
+			res.Set(i, j, m.At(i, 0)*other.At(0, j)+m.At(i, 1)*other.At(1, j))
+		}
+	}
+	return res
+}
+
+// Multiply2x1 returns the product of this 3x2 matrix by a 2x1 matrix.
+func (m *Matrix3x2) Multiply2x1(other *Matrix2x1) *Matrix3x1 {
+	res := NewMatrix3x1()
+	res.Set(0, 0, m.At(0, 0)*other.At(0, 0)+m.At(0, 1)*other.At(1, 0))
+	res.Set(1, 0, m.At(1, 0)*other.At(0, 0)+m.At(1, 1)*other.At(1, 0))
+	res.Set(2, 0, m.At(2, 0)*other.At(0, 0)+m.At(2, 1)*other.At(1, 0))
+	return res
+}
+
+// Multiply2x3 returns the product of this 3x2 matrix by a 2x3 matrix.
+func (m *Matrix3x2) Multiply2x3(other *Matrix2x3) *Matrix3x3 {
+	res := NewMatrix3x3()
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
+			res.Set(i, j, m.At(i, 0)*other.At(0, j)+m.At(i, 1)*other.At(1, j))
+		}
+	}
+	return res
+}
+
+// --- Matrix3x1 ---
+
+// Matrix3x1 represents a specialized 3x1 matrix (column vector) for Kalman filter state vectors.
+type Matrix3x1 struct {
+	data [3]float32 // [row0, row1, row2]
+}
+
+// NewMatrix3x1 creates a new zero-initialized 3x1 matrix.
+func NewMatrix3x1() *Matrix3x1 {
+	return &Matrix3x1{}
+}
+
+// At returns the value at a specific row.
+func (m *Matrix3x1) At(r, c int) float32 {
+	if c != 0 {
+		panic("Column index for 3x1 matrix must be 0")
+	}
+	return m.data[r]
+}
+
+// Set sets the value at a specific row.
+func (m *Matrix3x1) Set(r, c int, val float32) {
+	if c != 0 {
+		panic("Column index for 3x1 matrix must be 0")
+	}
+	m.data[r] = val
+}
+
+// Add returns the sum of two 3x1 matrices.
+func (m *Matrix3x1) Add(other *Matrix3x1) *Matrix3x1 {
+	res := NewMatrix3x1()
+	res.Set(0, 0, m.At(0, 0)+other.At(0, 0))
+	res.Set(1, 0, m.At(1, 0)+other.At(1, 0))
+	res.Set(2, 0, m.At(2, 0)+other.At(2, 0))
+	return res
+}
+
+// --- Matrix2x3 (Observation Matrix) ---
+
+// Matrix2x3 represents a specialized 2x3 matrix for Kalman filter operations.
+type Matrix2x3 struct {
+	data [6]float32 // Row-major order: [0,0], [0,1], [0,2], [1,0], [1,1], [1,2]
+}
+
+// NewMatrix2x3 creates a new zero-initialized 2x3 matrix.
+func NewMatrix2x3() *Matrix2x3 {
+	return &Matrix2x3{}
+}
+
+// At returns the value at a specific row and column.
+func (m *Matrix2x3) At(r, c int) float32 {
+	return m.data[r*3+c]
+}
+
+// Set sets the value at a specific row and column.
+func (m *Matrix2x3) Set(r, c int, val float32) {
+	m.data[r*3+c] = val
+}
+
+// Multiply3x1 returns the product of this 2x3 matrix by a 3x1 matrix.
+func (m *Matrix2x3) Multiply3x1(other *Matrix3x1) *Matrix2x1 {
+	res := NewMatrix2x1()
+	res.Set(0, 0, m.At(0, 0)*other.At(0, 0)+m.At(0, 1)*other.At(1, 0)+m.At(0, 2)*other.At(2, 0))
+	res.Set(1, 0, m.At(1, 0)*other.At(0, 0)+m.At(1, 1)*other.At(1, 0)+m.At(1, 2)*other.At(2, 0))
+	return res
+}
+
+// Transpose returns the transpose of the 2x3 matrix (resulting in a 3x2 matrix).
+func (m *Matrix2x3) Transpose() *Matrix3x2 {
+	res := NewMatrix3x2()
+	res.Set(0, 0, m.At(0, 0))
+	res.Set(0, 1, m.At(1, 0))
+	res.Set(1, 0, m.At(0, 1))
+	res.Set(1, 1, m.At(1, 1))
+	res.Set(2, 0, m.At(0, 2))
+	res.Set(2, 1, m.At(1, 2))
+	return res
+}
+
+// Multiply3x3 returns the product of this 2x3 matrix by a 3x3 matrix.
+func (m *Matrix2x3) Multiply3x3(other *Matrix3x3) *Matrix2x3 {
+	res := NewMatrix2x3()
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 3; j++ {
+			res.Set(i, j, m.At(i, 0)*other.At(0, j)+m.At(i, 1)*other.At(1, j)+m.At(i, 2)*other.At(2, j))
+		}
+	}
+	return res
+}
+
+// Multiply3x2 returns the product of this 2x3 matrix by a 3x2 matrix.
+func (m *Matrix2x3) Multiply3x2(other *Matrix3x2) *Matrix2x2 {
+	res := NewMatrix2x2()
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 2; j++ {
+			res.Set(i, j, m.At(i, 0)*other.At(0, j)+m.At(i, 1)*other.At(1, j)+m.At(i, 2)*other.At(2, j))
+		}
+	}
+	return res
 }

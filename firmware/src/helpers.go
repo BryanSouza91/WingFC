@@ -180,34 +180,46 @@ func mapRange[T uint16 | uint32 | float32](value, fromMin, fromMax, toMin, toMax
 	return (value-fromMin)/(fromMax-fromMin)*(toMax-toMin) + toMin
 }
 
-// setServo sets the PWM duty cycle for the aileron and elevator servos.
-// It converts a pulse width in microseconds to a value relative to the PWM period.
-func setServo(leftPulse, rightPulse uint32) {
-	if hw == nil || hw.ServoPWM == nil {
+// setAllServos sets the PWM duty cycle for all 5 servo channels using their dedicated instances.
+func setAllServos(servo1, servo2, servo4, servo5, servo6 uint32) {
+	if hw == nil {
 		return
 	}
-	// The Period() function is not available. We use the saved period instead.
-	top_value := hw.ServoPWM.Top()
 
-	// Calculate the duty cycle for the left servo.
-	duty_left := uint32(uint64(leftPulse) * 1000 * uint64(top_value) / uint64(hw.ServoPeriod))
-	hw.ServoPWM.Set(hw.pwmCh1, duty_left)
+	// PWM1 handles Servos 1, 2, 4, 5
+	topPWM1 := hw.PWM1.Top()
+	duty1 := uint32(uint64(servo1) * 1000 * uint64(topPWM1) / uint64(hw.PeriodPWM1))
+	duty2 := uint32(uint64(servo2) * 1000 * uint64(topPWM1) / uint64(hw.PeriodPWM1))
+	duty4 := uint32(uint64(servo4) * 1000 * uint64(topPWM1) / uint64(hw.PeriodPWM1))
+	duty5 := uint32(uint64(servo5) * 1000 * uint64(topPWM1) / uint64(hw.PeriodPWM1))
 
-	// Calculate the duty cycle for the right servo.
-	duty_right := uint32(uint64(rightPulse) * 1000 * uint64(top_value) / uint64(hw.ServoPeriod))
-	hw.ServoPWM.Set(hw.pwmCh2, duty_right)
+	hw.PWM1.Set(hw.pwmCh1, duty1)
+	hw.PWM1.Set(hw.pwmCh2, duty2)
+	hw.PWM1.Set(hw.pwmCh4, duty4)
+	hw.PWM1.Set(hw.pwmCh5, duty5)
+
+	// PWM2 handles Servo 6
+	topPWM2 := hw.PWM2.Top()
+	duty6 := uint32(uint64(servo6) * 1000 * uint64(topPWM2) / uint64(hw.PeriodPWM2))
+
+	hw.PWM2.Set(hw.pwmCh6, duty6)
 }
 
-// setESC sets the PWM duty cycle for the ESC.
-// It converts a pulse width in microseconds to a value relative to the PWM period.
+// setESC isolates ESC control to PWM0 (enabling 400Hz support)
 func setESC(pulseWidth uint32) {
-	if hw == nil || hw.ESCPWM == nil {
+	if hw == nil || hw.PWM0 == nil {
 		return
 	}
-	// The Period() function is not available. We use the saved period instead.
-	top_value := hw.ESCPWM.Top()
 
-	// Calculate the duty cycle for the ESC.
-	duty := uint32(uint64(pulseWidth) * 1000 * uint64(top_value) / uint64(hw.ESCPeriod))
-	hw.ESCPWM.Set(hw.pwmCh3, duty)
+	topPWM0 := hw.PWM0.Top()
+	duty := uint32(uint64(pulseWidth) * 1000 * uint64(topPWM0) / uint64(hw.PeriodPWM0))
+	hw.PWM0.Set(hw.pwmCh3, duty)
+}
+
+// applyReversal flips a servo value within its min/max range if configured.
+func applyReversal(pulse float32, reverse bool, min float32, max float32) float32 {
+	if reverse {
+		return min + max - pulse
+	}
+	return pulse
 }

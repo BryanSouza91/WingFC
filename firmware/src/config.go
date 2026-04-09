@@ -8,7 +8,6 @@ package main
 
 // --- Protocol Settings ---
 const (
-	// Number of supported RC channels
 	NumChannels = 18
 )
 
@@ -16,23 +15,97 @@ const (
 // 0: Default, 1: CW90, 2: CW180, 3: CW270, 4: flip, 5: flipCW90, 6: flipCW180, 7: flipCW270
 const ORIENTATION = 0
 
-// --- Receiver Configuration ---
-// --- Channel Mappings ---
-
+// --- Airframe Configuration ---
 const (
-	AileronChannel    = 0 // CH1
-	ElevatorChannel   = 1 // CH2
-	ThrottleChannel   = 2 // CH3
+	AIRFRAME_ELEVON = iota
+	AIRFRAME_SINGLE_AILERON_T_TAIL
+	AIRFRAME_DUAL_AILERON_T_TAIL
+	AIRFRAME_SINGLE_AILERON_V_TAIL
+	AIRFRAME_DUAL_AILERON_V_TAIL
+)
+
+// Set your aircraft type here
+const AIRCRAFT_TYPE = AIRFRAME_ELEVON
+
+// --- Receiver Configuration ---
+const (
+	AileronChannel    = 0 // CH1 (Roll)
+	ElevatorChannel   = 1 // CH2 (Pitch)
+	ThrottleChannel   = 2 // CH3 (Throttle)
+	YawChannel        = 3 // CH4 (Yaw)
 	ArmChannel        = 4 // CH5
 	ManualModeChannel = 5 // CH6
 
-	TuningChannelA = 6 // CH7 (aux channel)
-	TuningChannelB = 7 // CH8 (aux channel)
-	TuningChannelC = 8 // CH9 (aux channel)
-	TuningChannelD = 9 // CH10 (aux channel)
+	TuningChannelA = 6
+	TuningChannelB = 7
+	TuningChannelC = 8
+	TuningChannelD = 9
 )
 
-// Tuning Configuration
+// --- PWM & Hardware Configuration ---
+const (
+	// PWM Frequencies
+	SERVO_PWM_FREQUENCY = 50  // 50Hz for analog servos
+	ESC_PWM_FREQUENCY   = 400 // 400Hz for high-speed ESC
+
+	DEADBAND      = 10
+	HIGH_RX_VALUE = 1800
+
+	// RC Receiver channel value constants
+	MIN_RX_VALUE     = 988
+	MAX_RX_VALUE     = 2012
+	NEUTRAL_RX_VALUE = 1500
+)
+
+// --- Servo Configuration (Limits, Trims, & Reversals) ---
+const (
+	// Servo 1: Primary Aileron / Left Elevon
+	SERVO1_MIN     = 1100
+	SERVO1_MAX     = 1900
+	SERVO1_SUBTRIM = 0
+	SERVO1_REVERSE = false
+
+	// Servo 2: Primary Elevator / Right Elevon
+	SERVO2_MIN     = 1100
+	SERVO2_MAX     = 1900
+	SERVO2_SUBTRIM = 0
+	SERVO2_REVERSE = false
+
+	// Servo 4: Rudder / V-Tail
+	SERVO4_MIN     = 1100
+	SERVO4_MAX     = 1900
+	SERVO4_SUBTRIM = 0
+	SERVO4_REVERSE = false
+
+	// Servo 5: Secondary Aileron
+	SERVO5_MIN     = 1100
+	SERVO5_MAX     = 1900
+	SERVO5_SUBTRIM = 0
+	SERVO5_REVERSE = false
+
+	// Servo 6: Aux
+	SERVO6_MIN     = 1100
+	SERVO6_MAX     = 1900
+	SERVO6_SUBTRIM = 0
+	SERVO6_REVERSE = false
+)
+
+// --- Flight Control Parameters ---
+const (
+	MAX_PITCH_RATE_DEG = 200
+	MAX_ROLL_RATE_DEG  = 600
+	MAX_YAW_RATE_DEG   = 100
+
+	PID_WEIGHT         float32 = 0.5
+	LPF_BITSHIFT_LEVEL         = 1
+
+	// PID Gains
+	pP, pI, pD float32 = 1.0, 0.1, 0.01
+	rP, rI, rD float32 = 1.0, 0.1, 0.01
+	yP, yI, yD float32 = 0.5, 0.05, 0.01 // Yaw PID gains
+)
+
+// --- Tuning Parameters ---
 // Set TuneParameter to 0 to disable tuning, or 1-6 to enable
 const (
 	// Parameter selection (0 = disabled)
@@ -56,53 +129,4 @@ const (
 
 	TuneParameterDmin float32 = 0.001
 	TuneParameterDmax float32 = 0.1
-)
-
-// --- PWM Configuration ---
-const (
-	// Analog servo frequency 50Hz
-	// Digital servo frequency 100Hz 250Hz 333Hz etc.
-	SERVO_PWM_FREQUENCY = 50
-
-	// ESC frequency set at analog servo frequency 50Hz
-	// another common ESC frequency is 400Hz
-	ESC_PWM_FREQUENCY = 50
-
-	// Deadband around neutral for stick input
-	DEADBAND = 10
-
-	// High Rx channel value for arming/calibration
-	HIGH_RX_VALUE = 1800
-
-	// Left Elevon (Aileron) - servo travel limits and trim
-	LEFT_SERVO_MIN     = 1100 // Minimum pulse width (µs)
-	LEFT_SERVO_MAX     = 1900 // Maximum pulse width (µs)
-	LEFT_SERVO_SUBTRIM = 0    // Neutral offset (µs), e.g., +50 moves servo toward max
-
-	// Right Elevon (Elevator) - servo travel limits and trim
-	RIGHT_SERVO_MIN     = 1100
-	RIGHT_SERVO_MAX     = 1900
-	RIGHT_SERVO_SUBTRIM = 0
-)
-
-// --- Flight Control Parameters ---
-const (
-	// Maximum desired pitch rate in degrees/sec
-	MAX_PITCH_RATE_DEG = 200
-
-	// Maximum desired roll rate in degrees/sec
-	MAX_ROLL_RATE_DEG = 600
-
-	// Weighting for combining gyro/accel with input
-	PID_WEIGHT float32 = 0.5
-
-	// LPF bit-shift levels for integer filtering
-	// Level 0: No filtering (full weight to new value)
-	// Level 1: >> 2 shift (alpha ≈ 0.25, more responsive)
-	// Level 2: >> 3 shift (alpha ≈ 0.125, more smoothing)
-	LPF_BITSHIFT_LEVEL = 1 // Choose: 0, 1, or 2
-
-	// PID gains (P, I, D) for the pitch and roll controllers
-	pP, pI, pD float32 = 1., 0.1, 0.01
-	rP, rI, rD float32 = 1., 0.1, 0.01
 )
