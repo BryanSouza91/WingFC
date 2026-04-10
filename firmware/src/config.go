@@ -36,10 +36,10 @@ const (
 	ArmChannel        = 4 // CH5
 	ManualModeChannel = 5 // CH6
 
-	TuningChannelA = 6
-	TuningChannelB = 7
-	TuningChannelC = 8
-	TuningChannelD = 9
+	TuningChannelA = 6 // CH7 for tuning parameter A 
+	TuningChannelB = 7 // CH8 for tuning parameter B
+	TuningChannelC = 8 // CH9 for tuning parameter C 
+	TuningChannelD = 9 // CH10 for tuning parameter D
 )
 
 // --- PWM & Hardware Configuration ---
@@ -97,6 +97,9 @@ const (
 	MAX_YAW_RATE_DEG   = 100
 
 	PID_WEIGHT         float32 = 0.5
+
+	// Low-pass filter level for gyro data (higher = smoother but more lag)
+	// 0 = no filtering, 1 = mild (>> 2), 2 = stronger (>> 3)
 	LPF_BITSHIFT_LEVEL         = 1
 
 	// PID Gains
