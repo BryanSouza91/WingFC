@@ -87,7 +87,7 @@ func initPWMs(hw *FC_Hardware) error {
 	}
 	hw.PeriodPWM0 = escCfg.Period
 
-	if hw.pwmCh3, err := hw.PWM0.Channel(hw.PWM_CH3_PIN); err != nil {
+	if hw.pwmCh3, err = hw.PWM0.Channel(hw.PWM_CH3_PIN); err != nil {
 		return err
 	}
 
