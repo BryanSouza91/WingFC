@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const Version = "0.4.0-MixerUpdate"
+const Version = "0.3.0"
 
 var (
 	watchdog = machine.Watchdog
@@ -49,9 +49,8 @@ const (
 	FAILSAFE_TIMEOUT_MS = 500
 
 	// Flight states
-	INIT            flightState = iota
-	ESC_CALIBRATION             // New state for PWM range setting
-	IMU_CALIBRATION             // Renamed from CALIBRATION
+	ESC_CALIBRATION flightState = iota // New state for PWM range setting
+	IMU_CALIBRATION                    // Renamed from CALIBRATION
 	FLIGHT_MODE
 	FAILSAFE
 )
@@ -92,8 +91,8 @@ func main() {
 
 	watchdog.Configure(machine.WatchdogConfig{TimeoutMillis: 1000})
 
-	flightState := INIT
-	lastFlightState = INIT
+	flightState := ESC_CALIBRATION
+	lastFlightState = flightState
 
 	go readReceiver(hw.UART, packetChan)
 	ticker := time.NewTicker(time.Duration(dt * float32(time.Second)))
