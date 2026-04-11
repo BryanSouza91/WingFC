@@ -42,16 +42,19 @@ func InitHardware(hw *FC_Hardware) error {
 		return fmt.Errorf("hardware cannot be nil")
 	}
 
+	// Initialize the LED controller first for status indication during setup
 	hw.LED = NewLEDController(
 		NewMachinePin(machine.LED_RED),
 		NewMachinePin(machine.LED_GREEN),
 		NewMachinePin(machine.LED_BLUE),
 	)
 
-	if err := initUART(hw); err != nil {
+	// Initialize PWM instances before I2C and IMU to ensure ESC is set to a safe state early in the process.
+	// Allowing the ESC to initialize properly if it requires a valid signal at power-up and preventing unintended motor spin during setup.
+	if err := initPWMs(hw); err != nil {
 		return err
 	}
-	if err := initPWMs(hw); err != nil {
+	if err := initUART(hw); err != nil {
 		return err
 	}
 	if err := initI2C(hw); err != nil {
@@ -84,11 +87,13 @@ func initPWMs(hw *FC_Hardware) error {
 	}
 	hw.PeriodPWM0 = escCfg.Period
 
-	ch3, err := hw.PWM0.Channel(hw.PWM_CH3_PIN)
-	if err != nil {
+	if hw.pwmCh3, err := hw.PWM0.Channel(hw.PWM_CH3_PIN); err != nil {
 		return err
 	}
-	hw.pwmCh3 = ch3
+
+	// Set ESC to minimum throttle before initializing I2C and IMU to prevent unintended motor spin during setup
+	// and allow the ESC to initialize properly if it requires a valid signal at power-up.
+	hw.PWM0.Set(hw.pwmCh3, 0) // Start with 0% duty cycle for ESC
 
 	// --- Instance 1: Servos 1, 2, 4, 5 (50Hz) ---
 	servoCfg := machine.PWMConfig{Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY}
