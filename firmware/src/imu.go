@@ -46,7 +46,7 @@ func (i *IMU) rollAccel() float32 {
 func (i *IMU) yawGyro() float32 {
 	// No Motion No Integration (NMNI) - if gyroZ is below bias, treat as zero to prevent drift when stationary
 	// Apply deadzone to prevent drift when stationary
-	if i.GyroZ < i.GyroZBias {
+	if math.Abs(i.GyroZ) < math.Abs(i.GyroZBias) {
 		return 0
 	}
 	return i.GyroZ * dt
