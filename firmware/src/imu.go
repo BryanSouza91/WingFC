@@ -29,6 +29,7 @@ type IMU struct {
 
 	Pitch float32
 	Roll  float32
+	Yaw   float32
 }
 
 // pitchAccel() calculates the pitch angle in radians from accelerometer data.
@@ -39,4 +40,14 @@ func (i *IMU) pitchAccel() float32 {
 // rollAccel() calculates the roll angle in radians from accelerometer data.
 func (i *IMU) rollAccel() float32 {
 	return math.Atan2(i.AccelY, i.AccelZ)
+}
+
+// yawGyro() calculates the yaw ratee in m/s^2 from gyroscope data.
+func (i *IMU) yawGyro() float32 {
+	// No Motion No Integration (NMNI) - if gyroZ is below bias, treat as zero to prevent drift when stationary
+	// Apply deadzone to prevent drift when stationary
+	if i.GyroZ < i.GyroZBias {
+		return 0
+	}
+	return i.GyroZ * dt
 }

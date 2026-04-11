@@ -44,6 +44,7 @@ const (
 	// Calculated constants for PID control
 	MAX_ROLL_RATE  float32 = MAX_ROLL_RATE_DEG * math.Pi / 180
 	MAX_PITCH_RATE float32 = MAX_PITCH_RATE_DEG * math.Pi / 180
+	MAX_YAW_RATE   float32 = MAX_YAW_RATE_DEG * math.Pi / 180
 
 	// Fail-safe constants
 	FAILSAFE_TIMEOUT_MS = 500
@@ -140,9 +141,9 @@ func main() {
 				armed = Channels[ArmChannel] > HIGH_RX_VALUE
 
 				// Map RC inputs to Rates
-				pitchInput := mapRange(float32(Channels[ElevatorChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE_DEG, MAX_PITCH_RATE_DEG)
-				rollInput := mapRange(float32(Channels[AileronChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE_DEG, MAX_ROLL_RATE_DEG)
-				yawInput := mapRange(float32(Channels[YawChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_YAW_RATE_DEG, MAX_YAW_RATE_DEG)
+				pitchInput := mapRange(float32(Channels[ElevatorChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
+				rollInput := mapRange(float32(Channels[AileronChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
+				yawInput := mapRange(float32(Channels[YawChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_YAW_RATE, MAX_YAW_RATE)
 
 				var pitchMix, rollMix, yawMix float32
 
@@ -160,10 +161,10 @@ func main() {
 					kf.Predict(imuData.GyroX, imuData.GyroY, imuData.GyroZ)
 					kf.Update(imuData.Pitch, imuData.Roll)
 
-					// Calculate errors (convert input degrees to radians if necessary, matching your IMU)
-					pitchError := (pitchInput * math.Pi / 180) - imuData.GyroY
-					rollError := (rollInput * math.Pi / 180) - imuData.GyroX
-					yawError := (yawInput * math.Pi / 180) - imuData.GyroZ
+					// Calculate errors between desired rates and actual rates for PID
+					pitchError := pitchInput - imuData.Pitch
+					rollError := rollInput - imuData.Roll
+					yawError := yawInput - imuData.Yaw
 
 					pitchMix = pitchPID.Update(pitchError, dt) * PID_WEIGHT
 					rollMix = rollPID.Update(rollError, dt) * PID_WEIGHT

@@ -130,6 +130,7 @@ func processIMUData() {
 	imuData.GyroZ -= imuData.GyroZBias
 	imuData.Pitch = imuData.pitchAccel()
 	imuData.Roll = imuData.rollAccel()
+	imuData.Yaw = imuData.yawGyro()
 }
 
 // Calibrate the IMU by averaging a number of samples to determine bias offsets.
