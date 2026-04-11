@@ -36,9 +36,9 @@ const (
 	ArmChannel        = 4 // CH5
 	ManualModeChannel = 5 // CH6
 
-	TuningChannelA = 6 // CH7 for tuning parameter A 
+	TuningChannelA = 6 // CH7 for tuning parameter A
 	TuningChannelB = 7 // CH8 for tuning parameter B
-	TuningChannelC = 8 // CH9 for tuning parameter C 
+	TuningChannelC = 8 // CH9 for tuning parameter C
 	TuningChannelD = 9 // CH10 for tuning parameter D
 )
 
@@ -96,11 +96,11 @@ const (
 	MAX_ROLL_RATE_DEG  = 600
 	MAX_YAW_RATE_DEG   = 100
 
-	PID_WEIGHT         float32 = 0.5
+	PID_WEIGHT float32 = 0.5
 
 	// Low-pass filter level for gyro data (higher = smoother but more lag)
 	// 0 = no filtering, 1 = mild (>> 2), 2 = stronger (>> 3)
-	LPF_BITSHIFT_LEVEL         = 1
+	LPF_BITSHIFT_LEVEL = 1
 
 	// PID Gains
 	pP, pI, pD float32 = 1.0, 0.1, 0.01

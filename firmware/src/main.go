@@ -49,7 +49,9 @@ const (
 	FAILSAFE_TIMEOUT_MS = 500
 
 	// Flight states
-	CALIBRATION flightState = iota
+	INIT            flightState = iota
+	ESC_CALIBRATION             // New state for PWM range setting
+	IMU_CALIBRATION             // Renamed from CALIBRATION
 	FLIGHT_MODE
 	FAILSAFE
 )
@@ -90,8 +92,8 @@ func main() {
 
 	watchdog.Configure(machine.WatchdogConfig{TimeoutMillis: 1000})
 
-	flightState := CALIBRATION
-	lastFlightState = CALIBRATION
+	flightState := INIT
+	lastFlightState = INIT
 
 	go readReceiver(hw.UART, packetChan)
 	ticker := time.NewTicker(time.Duration(dt * float32(time.Second)))
@@ -115,7 +117,17 @@ func main() {
 			processIMUData()
 
 			switch flightState {
-			case CALIBRATION:
+			case ESC_CALIBRATION:
+				// Pass throttle directly to ESC for calibration
+				// ESC stays in 'high' mode until user drops stick
+				currentThrottle := uint32(Channels[ThrottleChannel])
+				setESC(currentThrottle)
+
+				if currentThrottle < (MIN_PULSE_WIDTH_US + 50) {
+					flightState = IMU_CALIBRATION
+				}
+
+			case IMU_CALIBRATION:
 				hw.LED.SetState(CALIBRATE)
 				hw.LED.Update()
 				setAllServos(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
