@@ -16,6 +16,18 @@ type UART interface {
 	Write(b byte) error
 }
 
+// SPI defines the interface for SPI communication.
+type SPI interface {
+	Configure(machine.SPIConfig) error
+	Tx(w, r []byte) error
+}
+
+// DShot defines the interface for digital ESC communication.
+type DShot interface {
+	Configure() error
+	SendThrottle(throttle uint16, telemetry bool)
+}
+
 // PWM defines the interface for PWM control.
 type PWM interface {
 	Configure(machine.PWMConfig) error

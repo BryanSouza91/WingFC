@@ -10,10 +10,12 @@ import (
 
 // FC_Hardware holds all hardware interfaces and their state.
 type FC_Hardware struct {
-	I2C  I2C
-	UART UART
-	IMU  IMUDevice
-	LED  LEDUpdater
+	I2C   I2C
+	UART  UART
+	SPI   SPI   // Underlying SPI bus for DShot
+	DShot DShot // High-level DShot driver
+	IMU   IMUDevice
+	LED   LEDUpdater
 
 	// Dedicated PWM Instances for Seeed XIAO nRF52840
 	PWM0 PWM // Instance 0: ESC (Freq 1)
@@ -49,11 +51,23 @@ func InitHardware(hw *FC_Hardware) error {
 		NewMachinePin(machine.LED_BLUE),
 	)
 
+	if DSHOT {
+		// Initialize DShot via SPI
+		// On XIAO nRF52840, SPI0 MOSI is typically D10 (PWM_CH3_PIN)
+		hw.SPI = machine.SPI0
+		hw.DShot = NewDShotDriver(hw.SPI)
+		if err := hw.DShot.Configure(); err != nil {
+			return fmt.Errorf("DShot/SPI configuration failed: %w", err)
+		}
+		hw.DShot.SendThrottle(0, false) // Ensure ESC starts in a safe state
+	}
+
 	// Initialize PWM instances before I2C and IMU to ensure ESC is set to a safe state early in the process.
 	// Allowing the ESC to initialize properly if it requires a valid signal at power-up and preventing unintended motor spin during setup.
 	if err := initPWMs(hw); err != nil {
 		return err
 	}
+
 	if err := initUART(hw); err != nil {
 		return err
 	}

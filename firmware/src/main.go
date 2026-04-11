@@ -198,9 +198,18 @@ func main() {
 				setAllServos(pulse1, pulse2, pulse4, pulse5, pulse6)
 
 				if armed {
-					setESC(uint32(Channels[ThrottleChannel]))
+					if DSHOT {
+						dshotThrottle := MapThrottle(Channels[ThrottleChannel])
+						hw.DShot.SendThrottle(dshotThrottle, false)
+					} else {
+						setESC(uint32(Channels[ThrottleChannel]))
+					}
 				} else {
-					setESC(MIN_PULSE_WIDTH_US)
+					if DSHOT {
+						hw.DShot.SendThrottle(0, false) // Send zero throttle command to disarm ESC safely
+					} else {
+						setESC(MIN_PULSE_WIDTH_US)
+					}
 				}
 
 			case FAILSAFE:
