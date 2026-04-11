@@ -45,7 +45,9 @@ const (
 // --- PWM & Hardware Configuration ---
 const (
 	// Use DShot for ESC throttle control, so no traditional PWM channel for throttle is needed.
-	DSHOT = true
+	// DSHOT_MODE can be 150, 300, or 600 (representing DShot150, DShot300, DShot600)
+	DSHOT      = true
+	DSHOT_MODE = 600
 
 	// PWM Frequencies
 	SERVO_PWM_FREQUENCY = 50  // 50Hz for analog servos

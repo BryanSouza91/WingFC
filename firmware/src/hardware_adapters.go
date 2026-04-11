@@ -51,6 +51,25 @@ func (m *MachineUART) Write(b byte) error {
 	return m.uart.WriteByte(b)
 }
 
+// === SPI Adapters ===
+
+// MachineSPI adapts machine.SPI to the SPI interface.
+type MachineSPI struct {
+	spi *machine.SPI
+}
+
+func NewMachineSPI(spi *machine.SPI) *MachineSPI {
+	return &MachineSPI{spi: spi}
+}
+
+func (m *MachineSPI) Configure(cfg machine.SPIConfig) error {
+	return m.spi.Configure(cfg)
+}
+
+func (m *MachineSPI) Tx(w, r []byte) error {
+	return m.spi.Tx(w, r)
+}
+
 // === PWM Adapters ===
 
 // MachinePWM adapts *machine.PWM to the PWM interface.

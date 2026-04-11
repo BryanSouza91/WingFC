@@ -54,7 +54,7 @@ func InitHardware(hw *FC_Hardware) error {
 	if DSHOT {
 		// Initialize DShot via SPI
 		// On XIAO nRF52840, SPI0 MOSI is typically D10 (PWM_CH3_PIN)
-		hw.SPI = machine.SPI0
+		hw.SPI = NewMachineSPI(machine.SPI0)
 		hw.DShot = NewDShotDriver(hw.SPI)
 		if err := hw.DShot.Configure(); err != nil {
 			return fmt.Errorf("DShot/SPI configuration failed: %w", err)
