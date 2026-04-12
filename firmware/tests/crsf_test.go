@@ -1,4 +1,4 @@
-package crsf
+package wingfc_test
 
 import (
 	"testing"
@@ -30,6 +30,7 @@ func (m *mockUART) WriteByte(b byte) error {
 var uart *mockUART
 
 const NumChannels = 16
+
 var Channels [NumChannels]uint16
 
 // --- THE ACTUAL TEST CASE ---

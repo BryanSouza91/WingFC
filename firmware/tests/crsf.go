@@ -1,4 +1,4 @@
-package crsf
+package wingfc_test
 
 // CRSF (Crossfire) protocol receiver implementation
 // Used by TBS Crossfire and ExpressLRS for RC link
@@ -172,10 +172,10 @@ func calculateCrc8(data []byte) byte {
 
 // ticksToUs converts the 11-bit channel value (172-1811) to microseconds (987-2012).
 func ticksToUs(ticks uint16) uint16 {
-	return uint16(ticks * 5 / 8 + 880)
+	return uint16(ticks*5/8 + 880)
 }
 
 // usToTicks converts microseconds (987-2012) to the 11-bit channel value (172-1811).
 func usToTicks(us uint16) uint16 {
-	return uint16(us * 8 / 5 + 880)
+	return uint16(us*8/5 + 880)
 }
