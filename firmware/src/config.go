@@ -15,16 +15,13 @@ const (
 // 0: Default, 1: CW90, 2: CW180, 3: CW270, 4: flip, 5: flipCW90, 6: flipCW180, 7: flipCW270
 const ORIENTATION = 0
 
-// --- Airframe Configuration ---
-const (
-	AIRFRAME_ELEVON = iota
-	AIRFRAME_SINGLE_AILERON_T_TAIL
-	AIRFRAME_DUAL_AILERON_T_TAIL
-	AIRFRAME_SINGLE_AILERON_V_TAIL
-	AIRFRAME_DUAL_AILERON_V_TAIL
-)
-
 // Set your aircraft type here
+// Options:
+// default: AIRFRAME_ELEVON
+// AIRFRAME_SINGLE_AILERON_T_TAIL
+// AIRFRAME_DUAL_AILERON_T_TAIL
+// AIRFRAME_SINGLE_AILERON_V_TAIL
+// AIRFRAME_DUAL_AILERON_V_TAIL
 const AIRCRAFT_TYPE = AIRFRAME_ELEVON
 
 // --- Receiver Configuration ---

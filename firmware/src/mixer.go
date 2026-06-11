@@ -1,5 +1,14 @@
 package main
 
+// --- Airframe Configuration ---
+const (
+	AIRFRAME_ELEVON = iota
+	AIRFRAME_SINGLE_AILERON_T_TAIL
+	AIRFRAME_DUAL_AILERON_T_TAIL
+	AIRFRAME_SINGLE_AILERON_V_TAIL
+	AIRFRAME_DUAL_AILERON_V_TAIL
+)
+
 // ApplyMixer takes the desired pitch, roll, and yaw outputs (from PID or manual input)
 // and mixes them into specific servo channels based on the chosen airframe type.
 // The output scale matches the input scale (e.g., expected -MAX_RATE to +MAX_RATE).
