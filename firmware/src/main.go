@@ -1,12 +1,13 @@
 package main
 
 import (
-	math "github.com/orsinium-labs/tinymath"
 	"machine"
 	"time"
+
+	math "github.com/orsinium-labs/tinymath"
 )
 
-const Version = "0.3.0"
+const Version = "0.4.0"
 
 var (
 	watchdog = machine.Watchdog
@@ -67,10 +68,11 @@ func main() {
 	// Route Seeed XIAO nRF52840 hardware pins
 	hw = &FC_Hardware{
 		I2C:         NewMachineI2C(machine.I2C0),
-		UART:        NewMachineUART(machine.DefaultUART),
-		PWM0:        NewMachinePWM(machine.PWM0), // ESC
-		PWM1:        NewMachinePWM(machine.PWM1), // Servos 1,2,4,5
-		PWM2:        NewMachinePWM(machine.PWM2), // Servo 6
+		UART0:       NewMachineUART(machine.DefaultUART), // Main UART for receiver
+		UART1:       NewMachineUART(machine.UART1),       // GPS UART
+		PWM0:        NewMachinePWM(machine.PWM0),         // ESC
+		PWM1:        NewMachinePWM(machine.PWM1),         // Servos 1,2,4,5
+		PWM2:        NewMachinePWM(machine.PWM2),         // Servo 6
 		PWM_CH1_PIN: machine.D0,
 		PWM_CH2_PIN: machine.D1,
 		PWM_CH3_PIN: machine.D3, // Moved to D3 for ESC/PWM0 grouping
@@ -84,6 +86,8 @@ func main() {
 			time.Sleep(time.Second)
 		} // Critical failure loop
 	}
+
+	if GPSEnabled {
 
 	kf = NewKalmanFilter(dt)
 	pitchPID = NewPIDController(pP, pI, pD)

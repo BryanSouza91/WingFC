@@ -11,9 +11,11 @@ import (
 // FC_Hardware holds all hardware interfaces and their state.
 type FC_Hardware struct {
 	I2C   I2C
-	UART  UART
-	SPI   SPI   // Underlying SPI bus for DShot
-	DShot DShot // High-level DShot driver
+	UART0 UART       // Main UART for receiver
+	UART1 UART       // GPS UART (if used)
+	SPI   SPI        // Underlying SPI bus for DShot
+	DShot DShot      // High-level DShot driver
+	GPS   GPSAdapter // GPS driver instance
 	IMU   IMUDevice
 	LED   LEDUpdater
 
@@ -68,8 +70,14 @@ func InitHardware(hw *FC_Hardware) error {
 		return err
 	}
 
-	if err := initUART(hw); err != nil {
+	if err := initUART0(hw); err != nil {
 		return err
+	}
+	if GPSEnabled {
+		if err := initUART1(hw); err != nil {
+			return err
+		}
+		hw.GPS = NewGPS(hw.UART1)
 	}
 	if err := initI2C(hw); err != nil {
 		return err
@@ -84,9 +92,22 @@ func InitHardware(hw *FC_Hardware) error {
 	return nil
 }
 
-func initUART(hw *FC_Hardware) error {
-	cfg := machine.UARTConfig{BaudRate: BAUD_RATE, TX: machine.UART_TX_PIN, RX: machine.UART_RX_PIN}
-	return hw.UART.Configure(cfg)
+func initUART0(hw *FC_Hardware) error {
+	cfg := machine.UARTConfig{
+		BaudRate: BAUD_RATE,
+		TX:       machine.UART_TX_PIN,
+		RX:       machine.UART_RX_PIN,
+	}
+	return hw.UART0.Configure(cfg)
+}
+
+func initUART1(hw *FC_Hardware) error {
+	cfg := machine.UARTConfig{
+		BaudRate: GPSBaudRate,
+		TX:       machine.UART1_TX_PIN,
+		RX:       machine.UART1_RX_PIN,
+	}
+	return hw.UART1.Configure(cfg)
 }
 
 // initPWMs sets up the 3 instances for multi-frequency operation.

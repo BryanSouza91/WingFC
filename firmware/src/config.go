@@ -59,6 +59,11 @@ const (
 	NEUTRAL_RX_VALUE = 1500
 )
 
+// --- GPS Settings ---
+const (
+	GPSEnabled = false // Set to true if GPS is connected and should be initialized
+)
+
 // --- Servo Configuration (Limits, Trims, & Reversals) ---
 const (
 	// Servo 1: Primary Aileron / Left Elevon

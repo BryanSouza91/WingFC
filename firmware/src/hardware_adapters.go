@@ -3,6 +3,7 @@ package main
 import (
 	"machine"
 
+	"tinygo.org/x/drivers/gps"
 	"tinygo.org/x/drivers/lsm6ds3tr"
 )
 
@@ -152,4 +153,41 @@ func (a *LSM6DS3TRAdapter) ReadAccel() (x, y, z int16, err error) {
 func (a *LSM6DS3TRAdapter) ReadGyro() (x, y, z int16, err error) {
 	rawX, rawY, rawZ, errGyro := a.dev.ReadRotation()
 	return int16(rawX >> 8), int16(rawY >> 8), int16(rawZ >> 8), errGyro
+}
+
+// === GPS Adapters ===
+type GPSAdapter struct {
+	Device gps.Device
+	Data   GPSData
+}
+
+func NewGPS(uart *MachineUART) *GPSAdapter {
+	return &GPSAdapter{
+		Device: gps.NewUART(uart),
+	}
+}
+
+func (g *GPSAdapter) Configure() error {
+	return g.Device.Configure()
+}
+
+func (g *GPSAdapter) Connected() bool {	
+	return g.Device.Connected()
+}
+
+func (g *GPSAdapter) Read() (g.Data GPSData, err error) {
+	err = g.Device.Read()
+	if err != nil {
+		return GPSData{}, err
+	}
+	return GPSData{
+		Latitude:   g.Data.Latitude,
+		Longitude:  g.Data.Longitude,
+		Altitude:   g.Data.Altitude,
+		Satellites: g.Data.Satellites,
+		Fix:        g.Data.Fix,
+		Speed:      g.Data.Speed,
+		Course:     g.Data.Course,
+		Time:       g.Data.Time,
+	}, nil
 }
