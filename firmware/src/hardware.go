@@ -77,7 +77,12 @@ func InitHardware(hw *FC_Hardware) error {
 		if err := initUART1(hw); err != nil {
 			return err
 		}
-		hw.GPS = NewGPS(hw.UART1)
+		// Type assert UART to MachineUART for GPS initialization
+		machineUART, ok := hw.UART1.(*MachineUART)
+		if !ok {
+			return fmt.Errorf("failed to initialize GPS: UART1 is not a MachineUART")
+		}
+		hw.GPS = NewGPS(machineUART)
 	}
 	if err := initI2C(hw); err != nil {
 		return err
@@ -103,7 +108,7 @@ func initUART0(hw *FC_Hardware) error {
 
 func initUART1(hw *FC_Hardware) error {
 	cfg := machine.UARTConfig{
-		BaudRate: GPSBaudRate,
+		BaudRate: GPS_BAUD_RATE,
 		TX:       machine.UART1_TX_PIN,
 		RX:       machine.UART1_RX_PIN,
 	}

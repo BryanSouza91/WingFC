@@ -59,9 +59,17 @@ const (
 	NEUTRAL_RX_VALUE = 1500
 )
 
+// --- UART Baud Rates ---
+const (
+	BAUD_RATE     = 420000  // UART0 receiver baud rate (CRSF: 420k, iBus: 115.2k)
+	GPS_BAUD_RATE = 9600    // UART1 GPS baud rate (u-blox)
+)
+
 // --- GPS Settings ---
 const (
-	GPSEnabled = false // Set to true if GPS is connected and should be initialized
+	GPSEnabled  = false // Set to true if GPS is connected and should be initialized
+	GPSReadRate = 5     // Hz - Read GPS every 200ms (5 Hz)
+	RTHEnabled  = false // Set to true to enable return-to-home on failsafe
 )
 
 // --- Servo Configuration (Limits, Trims, & Reversals) ---

@@ -177,7 +177,7 @@ func constrain[T uint16 | uint32 | float32](value, min, max T) T {
 }
 
 // Helper function to map a value from one range to another.
-func mapRange[T uint16 | uint32 | float32](value, fromMin, fromMax, toMin, toMax T) T {
+func mapRange[T int | uint16 | uint32 | float32](value, fromMin, fromMax, toMin, toMax T) T {
 	return (value-fromMin)/(fromMax-fromMin)*(toMax-toMin) + toMin
 }
 

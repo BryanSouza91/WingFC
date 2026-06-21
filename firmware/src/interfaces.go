@@ -55,10 +55,3 @@ type IMUDevice interface {
 	ReadAccel() (x, y, z int16, err error)
 	ReadGyro() (x, y, z int16, err error)
 }
-
-// GPSDevice defines the interface for GPS operations.
-type GPSDevice interface {
-	Configure() error
-	Connected() bool
-	Read() (gpsData GPSData, err error)
-}

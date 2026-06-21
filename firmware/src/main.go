@@ -21,6 +21,7 @@ var (
 	dt      float32 = 0.005
 	kf      *KalmanFilter
 	imuData IMU
+	gpsData GPSData // GPS data updated asynchronously
 
 	desiredPitchRate, desiredRollRate, desiredYawRate float32
 
@@ -30,6 +31,12 @@ var (
 	calibStartTime  time.Time
 	armed           bool
 	err             error
+
+	// Return-to-Home navigation state
+	navState            *NavigationState
+	rthActive           bool
+	homeNotCaptured     bool
+	signalLostStartTime time.Time
 )
 
 // Define constants for sensor value conversions and PWM.
@@ -55,9 +62,19 @@ const (
 	IMU_CALIBRATION                    // Renamed from CALIBRATION
 	FLIGHT_MODE
 	FAILSAFE
+	RETURN_TO_HOME // Return-to-home after GPS acquisition
 )
 
 type flightState int
+
+// conditionalGPSTicker returns a channel that receives on ticker ticks, or nil if ticker is nil.
+// This allows using a nil ticker in a select statement without panicking.
+func conditionalGPSTicker(ticker *time.Ticker) <-chan time.Time {
+	if ticker == nil {
+		return nil
+	}
+	return ticker.C
+}
 
 func main() {
 	println("WingFC Flight Controller - Version", Version)
@@ -87,21 +104,34 @@ func main() {
 		} // Critical failure loop
 	}
 
-	if GPSEnabled {
-
 	kf = NewKalmanFilter(dt)
 	pitchPID = NewPIDController(pP, pI, pD)
 	rollPID = NewPIDController(rP, rI, rD)
 	yawPID = NewPIDController(yP, yI, yD)
+
+	// Initialize navigation state for RTH
+	navState = NewNavigationState()
+	homeNotCaptured = true
+	rthActive = false
 
 	watchdog.Configure(machine.WatchdogConfig{TimeoutMillis: 1000})
 
 	flightState := ESC_CALIBRATION
 	lastFlightState = flightState
 
-	go readReceiver(hw.UART, packetChan)
+	go readReceiver(hw.UART0, packetChan)
+
+	// Main flight loop ticker (200Hz)
 	ticker := time.NewTicker(time.Duration(dt * float32(time.Second)))
 	defer ticker.Stop()
+
+	// GPS read ticker (5Hz)
+	var gpsTicker *time.Ticker
+	if GPSEnabled {
+		gpsTicker = time.NewTicker(time.Duration(1000/GPSReadRate) * time.Millisecond)
+		defer gpsTicker.Stop()
+	}
+
 	watchdog.Start()
 
 	for {
@@ -110,11 +140,52 @@ func main() {
 			LastPacketTime = time.Now()
 			Channels = processReceiverPacket(packet)
 
+		case <-conditionalGPSTicker(gpsTicker):
+			if GPSEnabled && flightState == FLIGHT_MODE {
+				newGPSData, err := hw.GPS.ReadGPS()
+				if err == nil && newGPSData.Valid {
+					gpsData = newGPSData
+
+					// Capture home on first valid fix in FLIGHT_MODE
+					if homeNotCaptured {
+						if err := hw.GPS.CaptureHome(); err == nil {
+							// Store home in navigation state for RTH
+							gpsAdapter := hw.GPS // Type assert to GPSAdapter
+							navState.RTHTargetLat = gpsAdapter.config.HomeLatitude
+							navState.RTHTargetLon = gpsAdapter.config.HomeLongitude
+							navState.RTHHoldAltitude = gpsAdapter.config.HomeAltitude
+							homeNotCaptured = false
+						}
+					}
+
+					// Debug output
+					print("GPS: Lat=")
+					print(gpsData.Latitude)
+					print(", Lon=")
+					print(gpsData.Longitude)
+					print(", Alt=")
+					print(gpsData.Altitude)
+					print("m, Sats=")
+					print(gpsData.Satellites)
+					print(", Valid=")
+					println(gpsData.Valid)
+				}
+			}
+
 		default:
 			<-ticker.C
 
-			if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState != FAILSAFE {
-				flightState = FAILSAFE
+			if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState != FAILSAFE && flightState != RETURN_TO_HOME {
+				// Check if RTH is enabled and GPS has a valid fix
+				if RTHEnabled && gpsData.Valid && !homeNotCaptured {
+					flightState = RETURN_TO_HOME
+					rthActive = true
+					signalLostStartTime = time.Now()
+					navState.RTHHoldAltitude = gpsData.Altitude // Hold current altitude
+					println("RTH: Failsafe triggered, activating Return-to-Home")
+				} else {
+					flightState = FAILSAFE
+				}
 			}
 
 			readIMUData()
@@ -221,6 +292,93 @@ func main() {
 				setESC(MIN_PULSE_WIDTH_US)
 				if time.Since(LastPacketTime).Milliseconds() <= FAILSAFE_TIMEOUT_MS {
 					flightState = FLIGHT_MODE
+				}
+
+			case RETURN_TO_HOME:
+				armed = Channels[ArmChannel] > HIGH_RX_VALUE
+
+				// Update navigation state with current GPS position
+				if gpsData.Valid {
+					UpdateRTHNavigation(navState, gpsData, imuData, gpsData.Altitude)
+
+					// Generate navigation control inputs
+					// Yaw control: bearing to home
+					// Convert heading error (radians) to rate-like error for PID (scale by Kp factor)
+					yawHeadingError := CalculateHeadingError(navState.RTHDesiredHeading, imuData.Yaw)
+					yawError := yawHeadingError * 2.0 // Scale factor to convert heading error to rate-like command
+					yawMix := yawPID.Update(yawError, dt) * PID_WEIGHT
+
+					// Pitch control: altitude hold
+					altitudeError := CalculateAltitudeError(gpsData.Altitude, navState.RTHHoldAltitude)
+					var pitchMix, rollMix float32
+					if altitudeError > RTHAltitudeDeadzone {
+						// Need to climb
+						pitchMix = 0.2 // Climb pitch
+					} else if altitudeError < -RTHAltitudeDeadzone {
+						// Need to descend
+						pitchMix = -0.2 // Descend pitch
+					}
+					// Roll control: wings level for RTH (no lateral correction yet)
+					rollMix = 0.0
+
+					// Apply mixer
+					s1, s2, s4, s5, s6 := ApplyMixer(pitchMix, rollMix, yawMix)
+
+					// Map outputs and apply servos
+					s1 = mapRange(s1, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+					s2 = mapRange(s2, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+					s4 = mapRange(s4, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+					s5 = mapRange(s5, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+					s6 = mapRange(s6, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+
+					// Apply reversals
+					s1 = applyReversal(s1, SERVO1_REVERSE, float32(SERVO1_MIN), float32(SERVO1_MAX))
+					s2 = applyReversal(s2, SERVO2_REVERSE, float32(SERVO2_MIN), float32(SERVO2_MAX))
+					s4 = applyReversal(s4, SERVO4_REVERSE, float32(SERVO4_MIN), float32(SERVO4_MAX))
+					s5 = applyReversal(s5, SERVO5_REVERSE, float32(SERVO5_MIN), float32(SERVO5_MAX))
+					s6 = applyReversal(s6, SERVO6_REVERSE, float32(SERVO6_MIN), float32(SERVO6_MAX))
+
+					// Add trims and constrain
+					pulse1 := uint32(constrain(s1+float32(SERVO1_SUBTRIM), float32(SERVO1_MIN), float32(SERVO1_MAX)))
+					pulse2 := uint32(constrain(s2+float32(SERVO2_SUBTRIM), float32(SERVO2_MIN), float32(SERVO2_MAX)))
+					pulse4 := uint32(constrain(s4+float32(SERVO4_SUBTRIM), float32(SERVO4_MIN), float32(SERVO4_MAX)))
+					pulse5 := uint32(constrain(s5+float32(SERVO5_SUBTRIM), float32(SERVO5_MIN), float32(SERVO5_MAX)))
+					pulse6 := uint32(constrain(s6+float32(SERVO6_SUBTRIM), float32(SERVO6_MIN), float32(SERVO6_MAX)))
+
+					setAllServos(pulse1, pulse2, pulse4, pulse5, pulse6)
+
+					// Maintain cruise throttle for RTH (use mid-range throttle)
+					if armed {
+						if DSHOT {
+							dshotThrottle := uint16(mapRange(1500, MIN_RX_VALUE, MAX_RX_VALUE, 0, 2000)) // Neutral throttle
+							hw.DShot.SendThrottle(dshotThrottle, false)
+						} else {
+							setESC(1500) // Mid-range PWM
+						}
+					} else {
+						if DSHOT {
+							hw.DShot.SendThrottle(0, false)
+						} else {
+							setESC(MIN_PULSE_WIDTH_US)
+						}
+					}
+
+					// Check if RTH is complete or signal recovered
+					if IsRTHComplete(navState) {
+						println("RTH: Reached home, switching to FAILSAFE")
+						flightState = FAILSAFE
+						rthActive = false
+					} else if time.Since(LastPacketTime).Milliseconds() <= FAILSAFE_TIMEOUT_MS {
+						// Signal recovered, return to FLIGHT_MODE
+						println("RTH: Signal recovered, returning to FLIGHT_MODE")
+						flightState = FLIGHT_MODE
+						rthActive = false
+					}
+				} else {
+					// GPS lost during RTH, switch to FAILSAFE
+					println("RTH: GPS signal lost, switching to FAILSAFE")
+					flightState = FAILSAFE
+					rthActive = false
 				}
 			}
 

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"machine"
+	"time"
 
+	math "github.com/orsinium-labs/tinymath"
 	"tinygo.org/x/drivers/gps"
 	"tinygo.org/x/drivers/lsm6ds3tr"
 )
@@ -156,38 +159,120 @@ func (a *LSM6DS3TRAdapter) ReadGyro() (x, y, z int16, err error) {
 }
 
 // === GPS Adapters ===
+
+// GPSAdapter wraps the GPS driver for UART-based communication.
 type GPSAdapter struct {
-	Device gps.Device
-	Data   GPSData
+	device  gps.Device
+	parser  gps.Parser
+	data    GPSData
+	config  GPSConfig
+	lastFix gps.Fix
 }
 
-func NewGPS(uart *MachineUART) *GPSAdapter {
-	return &GPSAdapter{
-		Device: gps.NewUART(uart),
+// NewGPS creates a new GPS adapter wrapping the  GPS driver.
+func NewGPS(uart *MachineUART) GPSAdapter {
+	parser := gps.NewParser()
+	device := gps.NewUART(uart.uart)
+	return GPSAdapter{
+		device:  device,
+		parser:  parser,
+		data:    GPSData{},
+		config:  GPSConfig{Enabled: GPSEnabled, BaudRate: GPSBaudRate, StaleDataTimeout: 2 * time.Second, HomeNotCaptured: true},
+		lastFix: gps.Fix{},
 	}
 }
 
+// Configure initializes the GPS device (UART already configured in hardware.go).
 func (g *GPSAdapter) Configure() error {
-	return g.Device.Configure()
+	// GPS device is already initialized with UART connection
+	return nil
 }
 
-func (g *GPSAdapter) Connected() bool {	
-	return g.Device.Connected()
-}
+// ReadGPS reads and parses NMEA sentences from the GPS device.
+// Returns the most recent valid fix or stale data depending on timeout.
+func (g *GPSAdapter) ReadGPS() (GPSData, error) {
+	// Read NMEA sentences in a loop until we get one we can parse or we've tried enough.
+	// This prevents blocking on the main flight loop.
+	for attempt := 0; attempt < 10; attempt++ {
+		sentence, err := g.device.NextSentence()
 
-func (g *GPSAdapter) Read() (g.Data GPSData, err error) {
-	err = g.Device.Read()
-	if err != nil {
-		return GPSData{}, err
+		// Handle EOF or no data available (non-blocking read)
+		if err != nil || sentence == "" {
+			break // No more data available
+		}
+
+		// Parse the sentence
+		fix, parseErr := g.parser.Parse(sentence)
+		if parseErr != nil {
+			// Log parse errors but continue to next sentence
+			println("GPS parse error:", parseErr)
+			continue
+		}
+
+		// Update the last received fix
+		g.lastFix = fix
+
+		// Check if this is a valid fix
+		if fix.Valid {
+			g.data.Latitude = fix.Latitude
+			g.data.Longitude = fix.Longitude
+			g.data.Altitude = fix.Altitude
+			g.data.Satellites = int(fix.Satellites)
+			g.data.Fix = 3 // Assuming valid fix is 3D (GGA sentence)
+			g.data.Speed = fix.Speed
+			g.data.Course = fix.Heading
+			g.data.Time = fix.Time.Format("15:04:05")
+			g.data.Valid = true
+			g.data.LastUpdateTime = time.Now()
+			g.data.HDOP = 1.0 // Default HDOP value ( GPS doesn't expose HDOP)
+		}
 	}
-	return GPSData{
-		Latitude:   g.Data.Latitude,
-		Longitude:  g.Data.Longitude,
-		Altitude:   g.Data.Altitude,
-		Satellites: g.Data.Satellites,
-		Fix:        g.Data.Fix,
-		Speed:      g.Data.Speed,
-		Course:     g.Data.Course,
-		Time:       g.Data.Time,
-	}, nil
+
+	// Check for stale data (no update for > StaleDataTimeout)
+	if !g.data.LastUpdateTime.IsZero() && time.Since(g.data.LastUpdateTime) > g.config.StaleDataTimeout {
+		g.data.Valid = false
+	}
+
+	return g.data, nil
+}
+
+// CaptureHome stores the current position as the home location.
+func (g *GPSAdapter) CaptureHome() error {
+	if !g.data.Valid {
+		return fmt.Errorf("cannot capture home: GPS fix is not valid")
+	}
+	g.config.HomeLatitude = g.data.Latitude
+	g.config.HomeLongitude = g.data.Longitude
+	g.config.HomeAltitude = g.data.Altitude
+	g.config.HomeNotCaptured = false
+	println("GPS: Home captured at", g.data.Latitude, ",", g.data.Longitude, "Altitude:", g.data.Altitude)
+	return nil
+}
+
+// IsValid returns whether the GPS fix is currently valid.
+func (g *GPSAdapter) IsValid() bool {
+	return g.data.Valid && !g.data.LastUpdateTime.IsZero() && time.Since(g.data.LastUpdateTime) <= g.config.StaleDataTimeout
+}
+
+// GetDistanceTo calculates the distance to a given lat/lon using Haversine formula (meters).
+func (g *GPSAdapter) GetDistanceTo(latitude, longitude float32) float32 {
+	if !g.IsValid() {
+		return -1 // Invalid fix
+	}
+
+	const earthRadius float32 = 6371000.0 // meters
+	const degreesToRadians float32 = math.Pi / 180.0
+
+	lat1 := g.data.Latitude * degreesToRadians
+	lat2 := latitude * degreesToRadians
+	deltaLat := (latitude - g.data.Latitude) * degreesToRadians
+	deltaLon := (longitude - g.data.Longitude) * degreesToRadians
+
+	a := math.Sin(deltaLat/2)*math.Sin(deltaLat/2) +
+		math.Cos(lat1)*math.Cos(lat2)*math.Sin(deltaLon/2)*math.Sin(deltaLon/2)
+
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	distance := earthRadius * c
+
+	return distance
 }
