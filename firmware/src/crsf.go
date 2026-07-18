@@ -62,12 +62,6 @@ func readReceiver(uart UART, packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 	var state CRSFState = DESTINATION
 	var length uint8
 
-	resetState := func() {
-		packet = [CRSF_PACKET_SIZE]byte{}
-		packetIndex = 0
-		state = DESTINATION
-	}
-
 	for {
 
 		// Note: The UART interface doesn't expose Buffered(), so we do a simple read instead
@@ -97,7 +91,7 @@ func readReceiver(uart UART, packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 				packetIndex++
 				state = TYPE
 			} else {
-				resetState()
+				resetCRSFState(&packet, &packetIndex, &state)
 				state = DESTINATION // Invalid length, restart.
 			}
 
@@ -108,7 +102,7 @@ func readReceiver(uart UART, packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 				packetIndex++
 				state = PAYLOAD
 			} else {
-				resetState()
+				resetCRSFState(&packet, &packetIndex, &state)
 				state = DESTINATION // Invalid frametype, restart.
 			}
 
@@ -132,9 +126,19 @@ func readReceiver(uart UART, packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 			} else {
 				println("Checksum mismatch. Discarding packet.")
 			}
-			resetState()
+			resetCRSFState(&packet, &packetIndex, &state)
 		}
 	}
+}
+
+// resetCRSFState resets the packet parsing state. It takes explicit pointer
+// arguments (rather than closing over the caller's locals) so the compiler
+// can keep packet/packetIndex/state on the stack instead of heap-allocating
+// them for a closure.
+func resetCRSFState(packet *[CRSF_PACKET_SIZE]byte, packetIndex *uint8, state *CRSFState) {
+	*packet = [CRSF_PACKET_SIZE]byte{}
+	*packetIndex = 0
+	*state = DESTINATION
 }
 
 // processReceiverPacket unpacks the 11-bit channel values from a CRSF packet payload.

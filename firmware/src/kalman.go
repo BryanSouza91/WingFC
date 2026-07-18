@@ -3,13 +3,17 @@ package main
 // KalmanFilter represents a multivariate Kalman Filter upgraded for 3-Axis control.
 // State vector X: [pitch, roll, yaw]
 // Measurement vector Z: [pitch_accel, roll_accel]
+//
+// All matrix fields are value types (see matrix.go). This keeps Predict/Update
+// allocation-free: they run every control-loop tick, so heap-allocating a new
+// matrix on every arithmetic operation would create continuous GC pressure.
 type KalmanFilter struct {
-	X  *Matrix3x1 // (3x1) estimated state vector [pitch, roll, yaw]
-	P  *Matrix3x3 // (3x3) Estimate error covariance
-	Q  *Matrix3x3 // (3x3) Process noise covariance
-	R  *Matrix2x2 // (2x2) Measurement noise covariance (Accel provides Pitch/Roll only)
-	F  *Matrix3x3 // (3x3) State transition matrix
-	H  *Matrix2x3 // (2x3) Observation matrix (Corrected: 2 rows, 3 cols)
+	X  Matrix3x1 // (3x1) estimated state vector [pitch, roll, yaw]
+	P  Matrix3x3 // (3x3) Estimate error covariance
+	Q  Matrix3x3 // (3x3) Process noise covariance
+	R  Matrix2x2 // (2x2) Measurement noise covariance (Accel provides Pitch/Roll only)
+	F  Matrix3x3 // (3x3) State transition matrix
+	H  Matrix2x3 // (2x3) Observation matrix (Corrected: 2 rows, 3 cols)
 	dt float32
 }
 
