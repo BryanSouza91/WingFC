@@ -1,9 +1,11 @@
 package main
 
 import (
-	math "github.com/orsinium-labs/tinymath"
 	"machine"
 	"time"
+
+	math "github.com/orsinium-labs/tinymath"
+	"tinygo.org/x/drivers/lsm6ds3tr"
 )
 
 const Version = "0.3.0"
@@ -67,6 +69,7 @@ func main() {
 	// Route Seeed XIAO nRF52840 hardware pins
 	hw = &FC_Hardware{
 		I2C:         NewMachineI2C(machine.I2C0),
+		IMU:         NewLSM6DS3TRAdapter(lsm6ds3tr.New(machine.I2C0)),
 		UART:        NewMachineUART(machine.DefaultUART),
 		PWM0:        NewMachinePWM(machine.PWM0), // ESC
 		PWM1:        NewMachinePWM(machine.PWM1), // Servos 1,2,4,5
