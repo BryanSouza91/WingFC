@@ -18,10 +18,10 @@ func ApplyMixer(pitchOutput, rollOutput, yawOutput float32) (servo1, servo2, ser
 
 	switch AIRCRAFT_TYPE {
 	case AIRFRAME_ELEVON:
-		// Left Elevon = Roll + Pitch
-		servo1 = rollOutput + pitchOutput
-		// Right Elevon = -Roll + Pitch
-		servo2 = -rollOutput + pitchOutput
+		// Left Elevon = 0.5*Roll + 0.5*Pitch
+		servo1 = 0.5*rollOutput + 0.5*pitchOutput
+		// Right Elevon = -0.5*Roll + 0.5*Pitch
+		servo2 = -0.5*rollOutput + 0.5*pitchOutput
 		// Yaw mapping (if rudder exists on the wing)
 		servo4 = yawOutput
 
@@ -37,15 +37,15 @@ func ApplyMixer(pitchOutput, rollOutput, yawOutput float32) (servo1, servo2, ser
 		servo4 = yawOutput   // Rudder
 
 	case AIRFRAME_SINGLE_AILERON_V_TAIL:
-		servo1 = rollOutput              // Aileron
-		servo2 = pitchOutput + yawOutput // Right V-Tail surface
-		servo4 = pitchOutput - yawOutput // Left V-Tail surface
+		servo1 = rollOutput                    // Aileron
+		servo2 = 0.5*pitchOutput + 0.5*yawOutput // Right V-Tail surface
+		servo4 = 0.5*pitchOutput - 0.5*yawOutput // Left V-Tail surface
 
 	case AIRFRAME_DUAL_AILERON_V_TAIL:
-		servo1 = rollOutput              // Left Aileron
-		servo5 = -rollOutput             // Right Aileron
-		servo2 = pitchOutput + yawOutput // Right V-Tail surface
-		servo4 = pitchOutput - yawOutput // Left V-Tail surface
+		servo1 = rollOutput                    // Left Aileron
+		servo5 = -rollOutput                   // Right Aileron
+		servo2 = 0.5*pitchOutput + 0.5*yawOutput // Right V-Tail surface
+		servo4 = 0.5*pitchOutput - 0.5*yawOutput // Left V-Tail surface
 	}
 
 	return servo1, servo2, servo4, servo5, servo6

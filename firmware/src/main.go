@@ -30,7 +30,6 @@ var (
 	LastPacketTime  time.Time
 	calibStartTime  time.Time
 	armed           bool
-	err             error
 )
 
 // Define constants for sensor value conversions and PWM.
@@ -51,6 +50,11 @@ const (
 	// Calculated angle constants for stabilized mode (radians)
 	MAX_PITCH_ANGLE float32 = MAX_PITCH_ANGLE_DEG * math.Pi / 180
 	MAX_ROLL_ANGLE  float32 = MAX_ROLL_ANGLE_DEG * math.Pi / 180
+
+	// Reciprocals for fast Cortex-M4F float multiplication
+	invMaxPitchAngle float32 = 1.0 / MAX_PITCH_ANGLE
+	invMaxRollAngle  float32 = 1.0 / MAX_ROLL_ANGLE
+	invMaxYawRate    float32 = 1.0 / MAX_YAW_RATE
 
 	// Fail-safe constants
 	FAILSAFE_TIMEOUT_MS = 500
@@ -171,25 +175,25 @@ func main() {
 				yawPID.Reset()
 			} else {
 				// Stabilized / Angle Mode:
-				//   1. Predict state with gyro
+				//   1. Predict state with gyro (pitch from GyroY, roll from GyroX)
 				//   2. Update state with accel
 				//   3. Compute angle errors (desired_angle - estimated_angle)
-				kf.Predict(imuData.GyroX, imuData.GyroY, imuData.GyroZ)
+				kf.Predict(imuData.GyroX, imuData.GyroY)
 				kf.Update(imuData.Pitch, imuData.Roll)
 
 				// Desired angles mapped from stick inputs [-MAX_ANGLE, +MAX_ANGLE]
 				desiredPitch := pitchStick * MAX_PITCH_ANGLE
 				desiredRoll := rollStick * MAX_ROLL_ANGLE
 
-				// Read Kalman angle estimates [pitch=0, roll=1, yaw=2]
+				// Read Kalman angle estimates [pitch=0, roll=1]
 				estPitch := kf.X.At(0, 0)
 				estRoll := kf.X.At(1, 0)
 
-				// Angle errors normalized by max angles so full error = 1.0
-				pitchError := (desiredPitch - estPitch) / MAX_PITCH_ANGLE
-				rollError := (desiredRoll - estRoll) / MAX_ROLL_ANGLE
+				// Angle errors normalized by max angles so full error = 1.0 (fast FMUL with reciprocals)
+				pitchError := (desiredPitch - estPitch) * invMaxPitchAngle
+				rollError := (desiredRoll - estRoll) * invMaxRollAngle
 				// Yaw remains rate-based (desired rate - gyro rate) normalized by MAX_YAW_RATE
-				yawError := (yawStick*MAX_YAW_RATE - imuData.GyroZ) / MAX_YAW_RATE
+				yawError := (yawStick*MAX_YAW_RATE - imuData.GyroZ) * invMaxYawRate
 
 				pitchMix = constrain(pitchPID.Update(pitchError, dt)*PID_WEIGHT, -1.0, 1.0)
 				rollMix = constrain(rollPID.Update(rollError, dt)*PID_WEIGHT, -1.0, 1.0)

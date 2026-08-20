@@ -71,16 +71,16 @@ func (d *DShotDriver) SendThrottle(throttle uint16, telemetry bool) {
 		throttle = DShotMaxThrottle
 	}
 
-	// 1. Build the packet: [11 bits throttle | 1 bit telemetry | 4 bits checksum]
-	packet := throttle << 5
+	// 1. Build 12-bit data word: [11 bits throttle | 1 bit telemetry]
+	data := throttle << 1
 	if telemetry {
-		packet |= (1 << 4)
+		data |= 1
 	}
 
 	// 2. Calculate Checksum (CRC)
-	// XOR of the three 4-bit nibbles of the (throttle << 1 | telemetry)
-	checksum := (packet ^ (packet >> 4) ^ (packet >> 8)) & 0x0F
-	packet |= checksum
+	// XOR of the three 4-bit nibbles of the 12-bit data word
+	checksum := (data ^ (data >> 4) ^ (data >> 8)) & 0x0F
+	packet := (data << 4) | checksum
 
 	// 3. Map the 16 bits of the packet to 16 SPI bytes
 	// We iterate from MSB to LSB

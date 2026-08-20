@@ -3,17 +3,17 @@
 
 package main
 
-// iBus multi-protocol receiver implementation
-// Supports FS-A8S (18 channels) and uses shared Channels array for integration with CRSF/ELRS
+import "time"
+
+// iBus receiver implementation for FlySky protocol
+// Standard frame: 32 bytes (2 byte header + 14 channels × 2 bytes + 2 byte checksum)
 
 // Define constants for iBus protocol
 const (
-	IBUS_HEADER1 = 0x20
-	IBUS_HEADER2 = 0x40
-	// We'll use the number of channels from config.go
-	IBUS_NUM_CHANNELS = NumChannels
-	// Header (2) + Channels (18 * 2) + Checksum (2)
-	IBUS_PACKET_SIZE = 2 + (IBUS_NUM_CHANNELS * 2) + 2
+	IBUS_HEADER1      = 0x20 // Length of standard packet (32 bytes)
+	IBUS_HEADER2      = 0x40 // Command byte
+	IBUS_NUM_CHANNELS = 14
+	IBUS_PACKET_SIZE  = 32
 
 	BAUD_RATE = 115200
 )
@@ -28,15 +28,10 @@ const (
 	WAITING_FOR_HEADER1 IBusState = iota
 	WAITING_FOR_HEADER2
 	READING_PAYLOAD
-	READING_CHECKSUM_LOW
-	READING_CHECKSUM_HIGH
 )
 
 // readReceiver is a goroutine that reads iBus packets from the UART and sends them to a channel.
-// This function uses a state machine to ensure a complete packet is received before
-// being sent over the channel.
 func readReceiver(uart UART, packetChan chan<- [IBUS_PACKET_SIZE]byte) {
-	// Access UART through the global hw instance
 	if uart == nil {
 		return
 	}
@@ -48,19 +43,21 @@ func readReceiver(uart UART, packetChan chan<- [IBUS_PACKET_SIZE]byte) {
 	for {
 		data, err := uart.Read()
 		if err != nil {
-			// If there's no data available, we can just continue.
-			// The goroutine will not block here.
+			time.Sleep(250 * time.Microsecond)
 			continue
 		}
 
 		switch ibusState {
 		case WAITING_FOR_HEADER1:
 			if data == IBUS_HEADER1 {
+				payloadBuffer[0] = data
+				payloadIndex = 1
 				ibusState = WAITING_FOR_HEADER2
 			}
 		case WAITING_FOR_HEADER2:
 			if data == IBUS_HEADER2 {
-				payloadIndex = 0
+				payloadBuffer[1] = data
+				payloadIndex = 2
 				ibusState = READING_PAYLOAD
 			} else {
 				ibusState = WAITING_FOR_HEADER1 // Invalid header sequence, reset
@@ -68,33 +65,31 @@ func readReceiver(uart UART, packetChan chan<- [IBUS_PACKET_SIZE]byte) {
 		case READING_PAYLOAD:
 			payloadBuffer[payloadIndex] = data
 			payloadIndex++
-			if payloadIndex >= IBUS_PACKET_SIZE-2 {
-				ibusState = READING_CHECKSUM_LOW
+			if payloadIndex >= IBUS_PACKET_SIZE {
+				// Verify 16-bit checksum: 0xFFFF - sum(bytes[0:30])
+				var calculatedChecksum uint16 = 0xFFFF
+				for i := 0; i < IBUS_PACKET_SIZE-2; i++ {
+					calculatedChecksum -= uint16(payloadBuffer[i])
+				}
+				receivedChecksum := uint16(payloadBuffer[IBUS_PACKET_SIZE-2]) | (uint16(payloadBuffer[IBUS_PACKET_SIZE-1]) << 8)
+
+				if calculatedChecksum == receivedChecksum {
+					packetChan <- payloadBuffer
+				}
+
+				// Reset the state machine for the next packet.
+				ibusState = WAITING_FOR_HEADER1
+				payloadIndex = 0
 			}
-		case READING_CHECKSUM_LOW:
-			payloadBuffer[payloadIndex] = data
-			payloadIndex++
-			ibusState = READING_CHECKSUM_HIGH
-		case READING_CHECKSUM_HIGH:
-			payloadBuffer[payloadIndex] = data
-
-			// Send the complete packet to the channel.
-			// This will block until the main goroutine is ready to receive it.
-			packetChan <- payloadBuffer
-
-			// Reset the state machine for the next packet.
-			ibusState = WAITING_FOR_HEADER1
-			payloadIndex = 0
 		}
 	}
 }
 
-// Helper function to process the iBus packet and update the global Channels array.
+// Helper function to process the iBus packet and update the channel array.
 func processReceiverPacket(packet [IBUS_PACKET_SIZE]byte) [NumChannels]uint16 {
 	var channelValues [NumChannels]uint16
-	// A simple checksum check can be added here
-	for i := 0; i < IBUS_NUM_CHANNELS; i++ {
-		channelValues[i] = uint16(packet[2*i]) | uint16(packet[2*i+1])<<8
+	for i := 0; i < IBUS_NUM_CHANNELS && i < NumChannels; i++ {
+		channelValues[i] = uint16(packet[2+2*i]) | (uint16(packet[2+2*i+1]) << 8)
 	}
 	return channelValues
 }

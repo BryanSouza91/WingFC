@@ -94,6 +94,8 @@ func initPWMs(hw *FC_Hardware) error {
 	hw.LED.SetState(PWMCONFIG)
 	hw.LED.Update()
 
+	var err error
+
 	// --- Instance 0: ESC (400Hz or 50Hz) ---
 	escCfg := machine.PWMConfig{Period: machine.GHz * 1 / ESC_PWM_FREQUENCY}
 	if err := hw.PWM0.Configure(escCfg); err != nil {
