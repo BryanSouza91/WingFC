@@ -31,10 +31,10 @@ const (
 	ThrottleChannel   = 2 // CH3 (Throttle)
 	YawChannel        = 3 // CH4 (Yaw)
 	ArmChannel        = 4 // CH5
-	ManualModeChannel = 5 // CH6
+	ManualModeChannel = 7 // CH6
 
-	TuningChannelA = 6 // CH7 for tuning parameter A
-	TuningChannelB = 7 // CH8 for tuning parameter B
+	TuningChannelA = 5 // CH7 for tuning parameter A
+	TuningChannelB = 6 // CH8 for tuning parameter B
 	TuningChannelC = 8 // CH9 for tuning parameter C
 	TuningChannelD = 9 // CH10 for tuning parameter D
 )
@@ -43,11 +43,11 @@ const (
 const (
 	// Use DShot for ESC throttle control, so no traditional PWM channel for throttle is needed.
 	// DSHOT_MODE can be 150, 300, or 600 (representing DShot150, DShot300, DShot600)
-	DSHOT      = true
+	DSHOT      = false
 	DSHOT_MODE = 600
 
 	// PWM Frequencies
-	SERVO_PWM_FREQUENCY = 50  // 50Hz for analog servos
+	SERVO_PWM_FREQUENCY = 100 // 50Hz for analog servos
 	ESC_PWM_FREQUENCY   = 400 // 400Hz for high-speed ESC
 
 	DEADBAND      = 10
@@ -98,16 +98,27 @@ const (
 	MAX_ROLL_RATE_DEG  = 600
 	MAX_YAW_RATE_DEG   = 100
 
+	// Maximum stabilized-mode angle commands from stick (degrees)
+	// Stick at full deflection commands this many degrees of desired tilt.
+	MAX_PITCH_ANGLE_DEG float32 = 45
+	MAX_ROLL_ANGLE_DEG  float32 = 60
+
 	PID_WEIGHT float32 = 0.5
 
-	// Low-pass filter level for gyro data (higher = smoother but more lag)
-	// 0 = no filtering, 1 = mild (>> 2), 2 = stronger (>> 3)
-	LPF_BITSHIFT_LEVEL = 1
+	// Low-pass filter levels (applied independently to accel and gyro).
+	// 0 = no filtering, 1 = mild (α≈0.25, >>2), 2 = stronger (α≈0.125, >>3)
+	//
+	// Gyros are low-noise — keep at 0 for maximum stabilization responsiveness.
+	// Accelerometers are vibration-prone — heavier filtering is appropriate.
+	LPF_ACCEL_LEVEL = 2
+	LPF_GYRO_LEVEL  = 0
 
 	// PID Gains
-	pP, pI, pD float32 = 1.0, 0.1, 0.01
-	rP, rI, rD float32 = 1.0, 0.1, 0.01
-	yP, yI, yD float32 = 0.5, 0.05, 0.01 // Yaw PID gains
+	// D gain is intentionally 0: the derivative term amplifies noise by 1/dt (×200 at 200Hz).
+	// Tune P and I first; only add D if oscillation persists after P/I are dialled in.
+	pP, pI, pD float32 = 1.0, 0.05, 0.0
+	rP, rI, rD float32 = 1.0, 0.05, 0.0
+	yP, yI, yD float32 = 0.5, 0.02, 0.0 // Yaw PID gains
 )
 
 // --- Tuning Parameters ---

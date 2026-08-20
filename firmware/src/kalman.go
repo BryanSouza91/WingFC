@@ -29,15 +29,20 @@ func NewKalmanFilter(dt float32) *KalmanFilter {
 	r.Set(0, 0, 0.5) // Pitch Accel noise
 	r.Set(1, 1, 0.5) // Roll Accel noise
 
+	// H maps the 3-element state [pitch, roll, yaw] to the 2-element
+	// accelerometer measurement [accelPitch, accelRoll].
+	// H[0,0]=1 observes pitch; H[1,1]=1 observes roll.
+	h := NewMatrix2x3()
+	h.Set(0, 0, 1) // accelPitch  ← pitch state
+	h.Set(1, 1, 1) // accelRoll   ← roll state
+
 	return &KalmanFilter{
 		X: x,
 		P: Identity3x3(),
 		Q: q,
 		R: r,
 		F: Identity3x3(),
-		// H maps [pitch, roll, yaw] -> [accelPitch, accelRoll]
-		// Pitch is observed at index 0, Roll at index 1.
-		H:  NewMatrix2x3(),
+		H:  h,
 		dt: dt,
 	}
 }

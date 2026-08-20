@@ -144,12 +144,12 @@ func (a *LSM6DS3TRAdapter) Connected() bool {
 	return a.dev.Connected()
 }
 
-func (a *LSM6DS3TRAdapter) ReadAccel() (x, y, z int16, err error) {
+func (a *LSM6DS3TRAdapter) ReadAccel() (x, y, z int32, err error) {
 	rawX, rawY, rawZ, errAccel := a.dev.ReadAcceleration()
-	return int16(rawX >> 8), int16(rawY >> 8), int16(rawZ >> 8), errAccel
+	return rawX, rawY, rawZ, errAccel
 }
 
-func (a *LSM6DS3TRAdapter) ReadGyro() (x, y, z int16, err error) {
+func (a *LSM6DS3TRAdapter) ReadGyro() (x, y, z int32, err error) {
 	rawX, rawY, rawZ, errGyro := a.dev.ReadRotation()
-	return int16(rawX >> 8), int16(rawY >> 8), int16(rawZ >> 8), errGyro
+	return rawX, rawY, rawZ, errGyro
 }

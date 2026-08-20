@@ -7,8 +7,8 @@ func readIMUData() {
 	}
 
 	var (
-		rawAccelX, rawAccelY, rawAccelZ int16
-		rawGyroX, rawGyroY, rawGyroZ    int16
+		rawAccelX, rawAccelY, rawAccelZ int32
+		rawGyroX, rawGyroY, rawGyroZ    int32
 
 		err error
 	)
@@ -31,40 +31,64 @@ func readIMUData() {
 	imuData.rawGyroZ = rawGyroZ
 }
 
-// applyLPF applies a simple low-pass filter to the raw IMU data to reduce noise.
-func applyLPF(rawAccelXout, rawAccelYout, rawAccelZout, rawGyroXout, rawGyroYout, rawGyroZout int16) (filteredAccelX, filteredAccelY, filteredAccelZ int32, filteredGyroX, filteredGyroY, filteredGyroZ int32) {
-	// Low-pass filter
-	switch LPF_BITSHIFT_LEVEL {
+// applyLPF applies independent exponential moving-average filters to accel and gyro.
+// Accel uses LPF_ACCEL_LEVEL (heavier, vibration is high-frequency noise).
+// Gyro uses LPF_GYRO_LEVEL (lighter/none, gyros are low-noise and need fast response).
+var (
+	lpfAccelX, lpfAccelY, lpfAccelZ int32
+	lpfGyroX, lpfGyroY, lpfGyroZ    int32
+)
+
+func applyLPF(rawAccelXout, rawAccelYout, rawAccelZout, rawGyroXout, rawGyroYout, rawGyroZout int32) (filteredAccelX, filteredAccelY, filteredAccelZ int32, filteredGyroX, filteredGyroY, filteredGyroZ int32) {
+	// --- Accelerometer filter ---
+	switch LPF_ACCEL_LEVEL {
 	case 0:
-		// No filtering
-		filteredAccelX = int32(rawAccelXout)
-		filteredAccelY = int32(rawAccelYout)
-		filteredAccelZ = int32(rawAccelZout)
-		filteredGyroX = int32(rawGyroXout)
-		filteredGyroY = int32(rawGyroYout)
-		filteredGyroZ = int32(rawGyroZout)
-	case 1:
-		// >> 2 shift
-		filteredAccelX = filteredAccelX - (filteredAccelX >> 2) + (int32(rawAccelXout) >> 2)
-		filteredAccelY = filteredAccelY - (filteredAccelY >> 2) + (int32(rawAccelYout) >> 2)
-		filteredAccelZ = filteredAccelZ - (filteredAccelZ >> 2) + (int32(rawAccelZout) >> 2)
-		filteredGyroX = filteredGyroX - (filteredGyroX >> 2) + (int32(rawGyroXout) >> 2)
-		filteredGyroY = filteredGyroY - (filteredGyroY >> 2) + (int32(rawGyroYout) >> 2)
-		filteredGyroZ = filteredGyroZ - (filteredGyroZ >> 2) + (int32(rawGyroZout) >> 2)
-	case 2:
-		// >> 3 shift
-		filteredAccelX = filteredAccelX - (filteredAccelX >> 3) + (int32(rawAccelXout) >> 3)
-		filteredAccelY = filteredAccelY - (filteredAccelY >> 3) + (int32(rawAccelYout) >> 3)
-		filteredAccelZ = filteredAccelZ - (filteredAccelZ >> 3) + (int32(rawAccelZout) >> 3)
-		filteredGyroX = filteredGyroX - (filteredGyroX >> 3) + (int32(rawGyroXout) >> 3)
-		filteredGyroY = filteredGyroY - (filteredGyroY >> 3) + (int32(rawGyroYout) >> 3)
-		filteredGyroZ = filteredGyroZ - (filteredGyroZ >> 3) + (int32(rawGyroZout) >> 3)
+		filteredAccelX = rawAccelXout
+		filteredAccelY = rawAccelYout
+		filteredAccelZ = rawAccelZout
+	case 1: // α ≈ 0.25 (>> 2)
+		lpfAccelX = lpfAccelX - (lpfAccelX >> 2) + (rawAccelXout >> 2)
+		lpfAccelY = lpfAccelY - (lpfAccelY >> 2) + (rawAccelYout >> 2)
+		lpfAccelZ = lpfAccelZ - (lpfAccelZ >> 2) + (rawAccelZout >> 2)
+		filteredAccelX, filteredAccelY, filteredAccelZ = lpfAccelX, lpfAccelY, lpfAccelZ
+	case 2: // α ≈ 0.125 (>> 3)
+		lpfAccelX = lpfAccelX - (lpfAccelX >> 3) + (rawAccelXout >> 3)
+		lpfAccelY = lpfAccelY - (lpfAccelY >> 3) + (rawAccelYout >> 3)
+		lpfAccelZ = lpfAccelZ - (lpfAccelZ >> 3) + (rawAccelZout >> 3)
+		filteredAccelX, filteredAccelY, filteredAccelZ = lpfAccelX, lpfAccelY, lpfAccelZ
+	default:
+		filteredAccelX = rawAccelXout
+		filteredAccelY = rawAccelYout
+		filteredAccelZ = rawAccelZout
 	}
+
+	// --- Gyroscope filter ---
+	switch LPF_GYRO_LEVEL {
+	case 0:
+		filteredGyroX = rawGyroXout
+		filteredGyroY = rawGyroYout
+		filteredGyroZ = rawGyroZout
+	case 1: // α ≈ 0.25 (>> 2)
+		lpfGyroX = lpfGyroX - (lpfGyroX >> 2) + (rawGyroXout >> 2)
+		lpfGyroY = lpfGyroY - (lpfGyroY >> 2) + (rawGyroYout >> 2)
+		lpfGyroZ = lpfGyroZ - (lpfGyroZ >> 2) + (rawGyroZout >> 2)
+		filteredGyroX, filteredGyroY, filteredGyroZ = lpfGyroX, lpfGyroY, lpfGyroZ
+	case 2: // α ≈ 0.125 (>> 3)
+		lpfGyroX = lpfGyroX - (lpfGyroX >> 3) + (rawGyroXout >> 3)
+		lpfGyroY = lpfGyroY - (lpfGyroY >> 3) + (rawGyroYout >> 3)
+		lpfGyroZ = lpfGyroZ - (lpfGyroZ >> 3) + (rawGyroZout >> 3)
+		filteredGyroX, filteredGyroY, filteredGyroZ = lpfGyroX, lpfGyroY, lpfGyroZ
+	default:
+		filteredGyroX = rawGyroXout
+		filteredGyroY = rawGyroYout
+		filteredGyroZ = rawGyroZout
+	}
+
 	return
 }
 
 // applyOrientation maps the raw IMU data to the correct axes based on the board orientation configuration.
-func applyOrientation(rawAccelX, rawAccelY, rawAccelZ, rawGyroX, rawGyroY, rawGyroZ int16) (rawAccelXout, rawAccelYout, rawAccelZout, rawGyroXout, rawGyroYout, rawGyroZout int16) {
+func applyOrientation(rawAccelX, rawAccelY, rawAccelZ, rawGyroX, rawGyroY, rawGyroZ int32) (rawAccelXout, rawAccelYout, rawAccelZout, rawGyroXout, rawGyroYout, rawGyroZout int32) {
 	// Map imu data based on board orientation configuration
 	switch ORIENTATION {
 	case 1: // CW90
@@ -135,17 +159,27 @@ func processIMUData() {
 
 // Calibrate the IMU by averaging a number of samples to determine bias offsets.
 // This function should be called when the aircraft is stationary and level.
+// Accumulates fully-processed (oriented, filtered, scaled) values so that bias
+// offsets are in the same units as the values used during flight.
 func calibrateIMU() {
 	const sampleSize = 10000
 	var (
-		accelXSum, accelYSum, accelZSum float32 = 0, 0, 0
-		gyroXSum, gyroYSum, gyroZSum    float32 = 0, 0, 0
+		gyroXSum, gyroYSum, gyroZSum float32
 	)
+
+	// Clear any previous biases before sampling so they do not skew the average
+	imuData.AccelXBias = 0
+	imuData.AccelYBias = 0
+	imuData.AccelZBias = 0
+	imuData.GyroXBias = 0
+	imuData.GyroYBias = 0
+	imuData.GyroZBias = 0
+
 	for i := sampleSize; i > 0; i-- {
+		// readIMUData + processIMUData gives fully oriented, filtered, and
+		// scaled AccelX/GyroX values (in m/s² and rad/s respectively).
 		readIMUData()
-		accelXSum += imuData.AccelX
-		accelYSum += imuData.AccelY
-		accelZSum += imuData.AccelZ
+		processIMUData()
 		gyroXSum += imuData.GyroX
 		gyroYSum += imuData.GyroY
 		gyroZSum += imuData.GyroZ
@@ -153,15 +187,10 @@ func calibrateIMU() {
 			println(i / 1000)
 		}
 	}
-	// println(accelXSum, accelYSum, accelZSum, gyroXSum, gyroYSum, gyroZSum)
 
-	imuData.AccelXBias = float32(accelXSum/sampleSize) * microGToMS2
-	imuData.AccelYBias = float32(accelYSum/sampleSize) * microGToMS2
-	imuData.AccelZBias = float32(accelZSum/sampleSize) * microGToMS2
-	println("Accel calibration complete. Bias X:", imuData.AccelXBias, "Bias Y:", imuData.AccelYBias, "Bias Z:", imuData.AccelZBias)
-	imuData.GyroXBias = float32(gyroXSum/sampleSize) * microDPSToRadS
-	imuData.GyroYBias = float32(gyroYSum/sampleSize) * microDPSToRadS
-	imuData.GyroZBias = float32(gyroZSum/sampleSize) * microDPSToRadS
+	imuData.GyroXBias = gyroXSum / sampleSize
+	imuData.GyroYBias = gyroYSum / sampleSize
+	imuData.GyroZBias = gyroZSum / sampleSize
 	println("Gyro calibration complete. Bias X:", imuData.GyroXBias, "Bias Y:", imuData.GyroYBias, "Bias Z:", imuData.GyroZBias)
 }
 

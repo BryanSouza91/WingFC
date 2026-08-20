@@ -8,7 +8,7 @@ import (
 	"tinygo.org/x/drivers/lsm6ds3tr"
 )
 
-const Version = "0.3.0"
+const Version = "0.4.0"
 
 var (
 	watchdog = machine.Watchdog
@@ -43,10 +43,14 @@ const (
 	MIN_PULSE_WIDTH_US = 1000
 	MAX_PULSE_WIDTH_US = 2000
 
-	// Calculated constants for PID control
+	// Calculated rate constants for manual/rate mode
 	MAX_ROLL_RATE  float32 = MAX_ROLL_RATE_DEG * math.Pi / 180
 	MAX_PITCH_RATE float32 = MAX_PITCH_RATE_DEG * math.Pi / 180
 	MAX_YAW_RATE   float32 = MAX_YAW_RATE_DEG * math.Pi / 180
+
+	// Calculated angle constants for stabilized mode (radians)
+	MAX_PITCH_ANGLE float32 = MAX_PITCH_ANGLE_DEG * math.Pi / 180
+	MAX_ROLL_ANGLE  float32 = MAX_ROLL_ANGLE_DEG * math.Pi / 180
 
 	// Fail-safe constants
 	FAILSAFE_TIMEOUT_MS = 500
@@ -104,126 +108,143 @@ func main() {
 	watchdog.Start()
 
 	for {
-		select {
-		case packet := <-packetChan:
-			LastPacketTime = time.Now()
-			Channels = processReceiverPacket(packet)
-
-		default:
-			<-ticker.C
-
-			if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState != FAILSAFE {
-				flightState = FAILSAFE
+		// Draining all pending receiver packets non-blockingly to update channel inputs
+	drainLoop:
+		for {
+			select {
+			case packet := <-packetChan:
+				LastPacketTime = time.Now()
+				Channels = processReceiverPacket(packet)
+			default:
+				break drainLoop
 			}
-
-			readIMUData()
-			processIMUData()
-
-			switch flightState {
-			case ESC_CALIBRATION:
-				// Pass throttle directly to ESC for calibration
-				// ESC stays in 'high' mode until user drops stick
-				currentThrottle := uint32(Channels[ThrottleChannel])
-				setESC(currentThrottle)
-
-				if currentThrottle < (MIN_PULSE_WIDTH_US + 50) {
-					flightState = IMU_CALIBRATION
-				}
-
-			case IMU_CALIBRATION:
-				hw.LED.SetState(CALIBRATE)
-				hw.LED.Update()
-				setAllServos(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
-				setESC(MIN_PULSE_WIDTH_US)
-
-				time.Sleep(time.Second)
-				calibrateIMU()
-				flightState = FLIGHT_MODE
-
-			case FLIGHT_MODE:
-				armed = Channels[ArmChannel] > HIGH_RX_VALUE
-
-				// Map RC inputs to Rates
-				pitchInput := mapRange(float32(Channels[ElevatorChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
-				rollInput := mapRange(float32(Channels[AileronChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
-				yawInput := mapRange(float32(Channels[YawChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_YAW_RATE, MAX_YAW_RATE)
-
-				var pitchMix, rollMix, yawMix float32
-
-				if Channels[ManualModeChannel] > HIGH_RX_VALUE {
-					// Manual Mode: Bypass PID, feed stick rates directly into Mixer
-					pitchMix = pitchInput
-					rollMix = rollInput
-					yawMix = yawInput
-
-					pitchPID.Reset()
-					rollPID.Reset()
-					yawPID.Reset()
-				} else {
-					// Stabilized Mode: 3-Axis Kalman & PID
-					kf.Predict(imuData.GyroX, imuData.GyroY, imuData.GyroZ)
-					kf.Update(imuData.Pitch, imuData.Roll)
-
-					// Calculate errors between desired rates and actual rates for PID
-					pitchError := pitchInput - imuData.Pitch
-					rollError := rollInput - imuData.Roll
-					yawError := yawInput - imuData.Yaw
-
-					pitchMix = pitchPID.Update(pitchError, dt) * PID_WEIGHT
-					rollMix = rollPID.Update(rollError, dt) * PID_WEIGHT
-					yawMix = yawPID.Update(yawError, dt) * PID_WEIGHT
-				}
-
-				// 1. Process Airframe Mixer
-				s1, s2, s4, s5, s6 := ApplyMixer(pitchMix, rollMix, yawMix)
-
-				// 2. Map Output Scale to Pulse Widths (Assuming Mixer outputs roughly -MAX_ROLL to +MAX_ROLL)
-				s1 = mapRange(s1, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
-				s2 = mapRange(s2, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
-				s4 = mapRange(s4, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
-				s5 = mapRange(s5, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
-				s6 = mapRange(s6, -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
-
-				// 3. Apply Reversals
-				s1 = applyReversal(s1, SERVO1_REVERSE, float32(SERVO1_MIN), float32(SERVO1_MAX))
-				s2 = applyReversal(s2, SERVO2_REVERSE, float32(SERVO2_MIN), float32(SERVO2_MAX))
-				s4 = applyReversal(s4, SERVO4_REVERSE, float32(SERVO4_MIN), float32(SERVO4_MAX))
-				s5 = applyReversal(s5, SERVO5_REVERSE, float32(SERVO5_MIN), float32(SERVO5_MAX))
-				s6 = applyReversal(s6, SERVO6_REVERSE, float32(SERVO6_MIN), float32(SERVO6_MAX))
-
-				// 4. Add Trims and Constrain
-				pulse1 := uint32(constrain(s1+float32(SERVO1_SUBTRIM), float32(SERVO1_MIN), float32(SERVO1_MAX)))
-				pulse2 := uint32(constrain(s2+float32(SERVO2_SUBTRIM), float32(SERVO2_MIN), float32(SERVO2_MAX)))
-				pulse4 := uint32(constrain(s4+float32(SERVO4_SUBTRIM), float32(SERVO4_MIN), float32(SERVO4_MAX)))
-				pulse5 := uint32(constrain(s5+float32(SERVO5_SUBTRIM), float32(SERVO5_MIN), float32(SERVO5_MAX)))
-				pulse6 := uint32(constrain(s6+float32(SERVO6_SUBTRIM), float32(SERVO6_MIN), float32(SERVO6_MAX)))
-
-				setAllServos(pulse1, pulse2, pulse4, pulse5, pulse6)
-
-				if armed {
-					if DSHOT {
-						dshotThrottle := MapThrottle(Channels[ThrottleChannel])
-						hw.DShot.SendThrottle(dshotThrottle, false)
-					} else {
-						setESC(uint32(Channels[ThrottleChannel]))
-					}
-				} else {
-					if DSHOT {
-						hw.DShot.SendThrottle(0, false) // Send zero throttle command to disarm ESC safely
-					} else {
-						setESC(MIN_PULSE_WIDTH_US)
-					}
-				}
-
-			case FAILSAFE:
-				setAllServos(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
-				setESC(MIN_PULSE_WIDTH_US)
-				if time.Since(LastPacketTime).Milliseconds() <= FAILSAFE_TIMEOUT_MS {
-					flightState = FLIGHT_MODE
-				}
-			}
-
-			watchdog.Update()
 		}
+
+		<-ticker.C
+
+		if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState != FAILSAFE {
+			flightState = FAILSAFE
+		}
+
+		readIMUData()
+		processIMUData()
+
+		switch flightState {
+		case ESC_CALIBRATION:
+			// Pass throttle directly to ESC for calibration
+			// ESC stays in 'high' mode until user drops stick
+			currentThrottle := uint32(Channels[ThrottleChannel])
+			setESC(currentThrottle)
+
+			if currentThrottle < (MIN_PULSE_WIDTH_US + 50) {
+				flightState = IMU_CALIBRATION
+			}
+
+		case IMU_CALIBRATION:
+			hw.LED.SetState(CALIBRATE)
+			hw.LED.Update()
+			setAllServos(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+			setESC(MIN_PULSE_WIDTH_US)
+
+			time.Sleep(time.Second)
+			calibrateIMU()
+			flightState = FLIGHT_MODE
+
+		case FLIGHT_MODE:
+			armed = Channels[ArmChannel] > HIGH_RX_VALUE
+
+			// Map RC inputs to normalized [-1.0, 1.0] range
+			pitchStick := mapRange(float32(Channels[ElevatorChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -1.0, 1.0)
+			rollStick := mapRange(float32(Channels[AileronChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -1.0, 1.0)
+			yawStick := mapRange(float32(Channels[YawChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -1.0, 1.0)
+
+			var pitchMix, rollMix, yawMix float32
+
+			if Channels[ManualModeChannel] > HIGH_RX_VALUE {
+				// Manual / Direct Pass-through Mode: feed stick directly into mixer [-1.0, 1.0]
+				pitchMix = pitchStick
+				rollMix = rollStick
+				yawMix = yawStick
+
+				pitchPID.Reset()
+				rollPID.Reset()
+				yawPID.Reset()
+			} else {
+				// Stabilized / Angle Mode:
+				//   1. Predict state with gyro
+				//   2. Update state with accel
+				//   3. Compute angle errors (desired_angle - estimated_angle)
+				kf.Predict(imuData.GyroX, imuData.GyroY, imuData.GyroZ)
+				kf.Update(imuData.Pitch, imuData.Roll)
+
+				// Desired angles mapped from stick inputs [-MAX_ANGLE, +MAX_ANGLE]
+				desiredPitch := pitchStick * MAX_PITCH_ANGLE
+				desiredRoll := rollStick * MAX_ROLL_ANGLE
+
+				// Read Kalman angle estimates [pitch=0, roll=1, yaw=2]
+				estPitch := kf.X.At(0, 0)
+				estRoll := kf.X.At(1, 0)
+
+				// Angle errors normalized by max angles so full error = 1.0
+				pitchError := (desiredPitch - estPitch) / MAX_PITCH_ANGLE
+				rollError := (desiredRoll - estRoll) / MAX_ROLL_ANGLE
+				// Yaw remains rate-based (desired rate - gyro rate) normalized by MAX_YAW_RATE
+				yawError := (yawStick*MAX_YAW_RATE - imuData.GyroZ) / MAX_YAW_RATE
+
+				pitchMix = constrain(pitchPID.Update(pitchError, dt)*PID_WEIGHT, -1.0, 1.0)
+				rollMix = constrain(rollPID.Update(rollError, dt)*PID_WEIGHT, -1.0, 1.0)
+				yawMix = constrain(yawPID.Update(yawError, dt)*PID_WEIGHT, -1.0, 1.0)
+			}
+
+			// 1. Process Airframe Mixer (outputs in [-1.0, 1.0] range)
+			s1, s2, s4, s5, s6 := ApplyMixer(pitchMix, rollMix, yawMix)
+
+			// 2. Map Output Scale to Pulse Widths [-1.0, 1.0] -> [1000us, 2000us]
+			s1 = mapRange(s1, -1.0, 1.0, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			s2 = mapRange(s2, -1.0, 1.0, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			s4 = mapRange(s4, -1.0, 1.0, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			s5 = mapRange(s5, -1.0, 1.0, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			s6 = mapRange(s6, -1.0, 1.0, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+
+			// 3. Apply Reversals
+			s1 = applyReversal(s1, SERVO1_REVERSE, float32(SERVO1_MIN), float32(SERVO1_MAX))
+			s2 = applyReversal(s2, SERVO2_REVERSE, float32(SERVO2_MIN), float32(SERVO2_MAX))
+			s4 = applyReversal(s4, SERVO4_REVERSE, float32(SERVO4_MIN), float32(SERVO4_MAX))
+			s5 = applyReversal(s5, SERVO5_REVERSE, float32(SERVO5_MIN), float32(SERVO5_MAX))
+			s6 = applyReversal(s6, SERVO6_REVERSE, float32(SERVO6_MIN), float32(SERVO6_MAX))
+
+			// 4. Add Trims and Constrain
+			pulse1 := uint32(constrain(s1+float32(SERVO1_SUBTRIM), float32(SERVO1_MIN), float32(SERVO1_MAX)))
+			pulse2 := uint32(constrain(s2+float32(SERVO2_SUBTRIM), float32(SERVO2_MIN), float32(SERVO2_MAX)))
+			pulse4 := uint32(constrain(s4+float32(SERVO4_SUBTRIM), float32(SERVO4_MIN), float32(SERVO4_MAX)))
+			pulse5 := uint32(constrain(s5+float32(SERVO5_SUBTRIM), float32(SERVO5_MIN), float32(SERVO5_MAX)))
+			pulse6 := uint32(constrain(s6+float32(SERVO6_SUBTRIM), float32(SERVO6_MIN), float32(SERVO6_MAX)))
+
+			setAllServos(pulse1, pulse2, pulse4, pulse5, pulse6)
+
+			if armed {
+				if DSHOT {
+					dshotThrottle := MapThrottle(Channels[ThrottleChannel])
+					hw.DShot.SendThrottle(dshotThrottle, false)
+				} else {
+					setESC(uint32(Channels[ThrottleChannel]))
+				}
+			} else {
+				if DSHOT {
+					hw.DShot.SendThrottle(0, false) // Send zero throttle command to disarm ESC safely
+				} else {
+					setESC(MIN_PULSE_WIDTH_US)
+				}
+			}
+
+		case FAILSAFE:
+			setAllServos(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+			setESC(MIN_PULSE_WIDTH_US)
+			if time.Since(LastPacketTime).Milliseconds() <= FAILSAFE_TIMEOUT_MS {
+				flightState = FLIGHT_MODE
+			}
+		}
+
+		watchdog.Update()
 	}
 }

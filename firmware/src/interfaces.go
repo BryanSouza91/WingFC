@@ -52,6 +52,6 @@ type LEDUpdater interface {
 type IMUDevice interface {
 	Configure(config interface{}) error
 	Connected() bool
-	ReadAccel() (x, y, z int16, err error)
-	ReadGyro() (x, y, z int16, err error)
+	ReadAccel() (x, y, z int32, err error)
+	ReadGyro() (x, y, z int32, err error)
 }
