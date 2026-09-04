@@ -51,9 +51,9 @@ const (
 // readReceiver is a goroutine that reads CRSF packets from the UART and sends them to a channel.
 // This function uses a state machine to ensure a complete packet is received before being passed on.
 // This function now accepts the channel and hardware instance as arguments.
-func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
+func readReceiver(uart UART, packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 	// Access UART through the global hw instance
-	if hw == nil || hw.UART == nil {
+	if uart == nil {
 		return
 	}
 
@@ -62,16 +62,10 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 	var state CRSFState = DESTINATION
 	var length uint8
 
-	resetState := func() {
-		packet = [CRSF_PACKET_SIZE]byte{}
-		packetIndex = 0
-		state = DESTINATION
-	}
-
 	for {
 
 		// Note: The UART interface doesn't expose Buffered(), so we do a simple read instead
-		b, err := hw.UART.Read()
+		b, err := uart.Read()
 		if err != nil {
 			// A non-blocking read returns an error. We can simply continue.
 			time.Sleep(250 * time.Microsecond)
@@ -97,7 +91,7 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 				packetIndex++
 				state = TYPE
 			} else {
-				resetState()
+				resetCRSFState(&packet, &packetIndex, &state)
 				state = DESTINATION // Invalid length, restart.
 			}
 
@@ -108,7 +102,7 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 				packetIndex++
 				state = PAYLOAD
 			} else {
-				resetState()
+				resetCRSFState(&packet, &packetIndex, &state)
 				state = DESTINATION // Invalid frametype, restart.
 			}
 
@@ -132,9 +126,19 @@ func readReceiver(packetChan chan<- [CRSF_PACKET_SIZE]byte) {
 			} else {
 				println("Checksum mismatch. Discarding packet.")
 			}
-			resetState()
+			resetCRSFState(&packet, &packetIndex, &state)
 		}
 	}
+}
+
+// resetCRSFState resets the packet parsing state. It takes explicit pointer
+// arguments (rather than closing over the caller's locals) so the compiler
+// can keep packet/packetIndex/state on the stack instead of heap-allocating
+// them for a closure.
+func resetCRSFState(packet *[CRSF_PACKET_SIZE]byte, packetIndex *uint8, state *CRSFState) {
+	*packet = [CRSF_PACKET_SIZE]byte{}
+	*packetIndex = 0
+	*state = DESTINATION
 }
 
 // processReceiverPacket unpacks the 11-bit channel values from a CRSF packet payload.
@@ -189,7 +193,7 @@ func calculateCrc8(data []byte) byte {
 // ticksToUs converts the 11-bit channel value (172-1811) to microseconds (988-2012).
 // Based on CRSF spec, https://github.com/tbs-fpv/tbs-crsf-spec/blob/main/crsf.md#0x16-rc-channels-packed-payload
 func ticksToUs(ticks uint16) uint16 {
-	return uint16(ticks * 5 / 8 + 880)
+	return uint16(ticks*5/8 + 880)
 }
 
 // usToTicks converts microseconds (988-2012) to the 11-bit channel value (172-1811).

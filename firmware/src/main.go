@@ -2,270 +2,253 @@ package main
 
 import (
 	"machine"
-	"math"
 	"time"
+
+	math "github.com/orsinium-labs/tinymath"
+	"tinygo.org/x/drivers/lsm6ds3tr"
 )
 
-// Version of the flight controller software.
-const Version = "0.3.0"
+const Version = "0.4.0"
 
-// Global variables for hardware interfaces, controllers, and filters.
 var (
 	watchdog = machine.Watchdog
+	hw       *FC_Hardware
 
-	// Global hardware instance
-	hw *FC_Hardware
-
-	// Control system components
+	// 3-Axis PID
 	pitchPID *PIDController
 	rollPID  *PIDController
-	dt       = 0.005 // 5ms loop time for 200Hz control loop
-	kf       *KalmanFilter
-	imuData  IMU
+	yawPID   *PIDController
 
-	// IMU calibration
-	accelXSum, accelYSum, accelZSum, accelBiasX, accelBiasY, accelBiasZ float64 = 0., 0., 0., 0., 0., 0.
-	gyroXSum, gyroYSum, gyroZSum, gyroBiasX, gyroBiasY, gyroBiasZ       float64 = 0., 0., 0., 0., 0., 0.
-	xA, yA, zA, xG, yG, zG                                              int32
-	desiredPitchRate, desiredRollRate                                   float64
+	dt      float32 = 0.005
+	kf      *KalmanFilter
+	imuData IMU
 
-	// RC Channels
+	desiredPitchRate, desiredRollRate, desiredYawRate float32
+
 	Channels        [NumChannels]uint16
 	lastFlightState flightState
 	LastPacketTime  time.Time
 	calibStartTime  time.Time
 	armed           bool
-	err             error
 )
 
 // Define constants for sensor value conversions and PWM.
 const (
 	// Convert sensor values to radians for calculations
-	microGToMS2    = 9.80665 / 1e6
-	microDPSToRadS = math.Pi / (180 * 1e6)
+	microGToMS2    float32 = 9.80665 / 1e6
+	microDPSToRadS float32 = math.Pi / (180 * 1e6)
 
 	// PWM pulse width constants
 	MIN_PULSE_WIDTH_US = 1000
 	MAX_PULSE_WIDTH_US = 2000
 
-	// RC Receiver channel value constants
-	MIN_RX_VALUE     = 988
-	MAX_RX_VALUE     = 2012
-	NEUTRAL_RX_VALUE = 1500
+	// Calculated rate constants for manual/rate mode
+	MAX_ROLL_RATE  float32 = MAX_ROLL_RATE_DEG * math.Pi / 180
+	MAX_PITCH_RATE float32 = MAX_PITCH_RATE_DEG * math.Pi / 180
+	MAX_YAW_RATE   float32 = MAX_YAW_RATE_DEG * math.Pi / 180
 
-	// Calculated constants for PID control
-	MAX_ROLL_RATE  = MAX_ROLL_RATE_DEG * math.Pi / 180
-	MAX_PITCH_RATE = MAX_PITCH_RATE_DEG * math.Pi / 180
+	// Calculated angle constants for stabilized mode (radians)
+	MAX_PITCH_ANGLE float32 = MAX_PITCH_ANGLE_DEG * math.Pi / 180
+	MAX_ROLL_ANGLE  float32 = MAX_ROLL_ANGLE_DEG * math.Pi / 180
+
+	// Reciprocals for fast Cortex-M4F float multiplication
+	invMaxPitchAngle float32 = 1.0 / MAX_PITCH_ANGLE
+	invMaxRollAngle  float32 = 1.0 / MAX_ROLL_ANGLE
+	invMaxYawRate    float32 = 1.0 / MAX_YAW_RATE
 
 	// Fail-safe constants
 	FAILSAFE_TIMEOUT_MS = 500
 
-	// State machine states
-	CALIBRATION flightState = iota
+	// Flight states
+	ESC_CALIBRATION flightState = iota // New state for PWM range setting
+	IMU_CALIBRATION                    // Renamed from CALIBRATION
 	FLIGHT_MODE
 	FAILSAFE
 )
 
 type flightState int
 
-// main is the entry point for the TinyGo program.
 func main() {
-	// Delay may be necessary for USB serial connection
-	// time.Sleep(2 * time.Second) // Wait for hardware to stabilize
-
 	println("WingFC Flight Controller - Version", Version)
-	println("A TinyGo Flight Controller for Flying Wing Aircraft")
+	println("A TinyGo Flight Controller for Radio-Control Aircraft")
 	println("Source: github.com/BryanSouza91/WingFC")
 	println("Author: Bryan Souza (github.com/BryanSouza91)")
 
-	println("Initializing...")
-
-	// Create concrete implementations and wire them into FC_Hardware
+	// Route Seeed XIAO nRF52840 hardware pins
 	hw = &FC_Hardware{
 		I2C:         NewMachineI2C(machine.I2C0),
+		IMU:         NewLSM6DS3TRAdapter(lsm6ds3tr.New(machine.I2C0)),
 		UART:        NewMachineUART(machine.DefaultUART),
-		ServoPWM:    NewMachinePWM0(machine.PWM0),
-		ESCPWM:      NewMachinePWM1(machine.PWM1),
-		LED:         NewLEDController(machine.LED_RED, machine.LED_GREEN, machine.LED_BLUE),
-		PWM_CH1_PIN: machine.D0, // Aileron Servo
-		PWM_CH2_PIN: machine.D1, // Elevator Servo
-		PWM_CH3_PIN: machine.D2, // ESC
+		PWM0:        NewMachinePWM(machine.PWM0), // ESC
+		PWM1:        NewMachinePWM(machine.PWM1), // Servos 1,2,4,5
+		PWM2:        NewMachinePWM(machine.PWM2), // Servo 6
+		PWM_CH1_PIN: machine.D0,
+		PWM_CH2_PIN: machine.D1,
+		PWM_CH3_PIN: machine.D3, // Moved to D3 for ESC/PWM0 grouping
+		PWM_CH4_PIN: machine.D2,
+		PWM_CH5_PIN: machine.D4,
+		PWM_CH6_PIN: machine.D5,
 	}
 
-	// Initialize all hardware
 	if err := InitHardware(hw); err != nil {
-		println("CRITICAL: Hardware initialization failed:", err)
-		// Enter error loop - LED will show error state
 		for {
 			time.Sleep(time.Second)
-		}
+		} // Critical failure loop
 	}
 
-	// --- Filter and Controller Setup ---
 	kf = NewKalmanFilter(dt)
 	pitchPID = NewPIDController(pP, pI, pD)
 	rollPID = NewPIDController(rP, rI, rD)
-	println("Control system initialized.")
+	yawPID = NewPIDController(yP, yI, yD)
 
-	// --- Watchdog Setup ---
-	watchdog.Configure(machine.WatchdogConfig{
-		TimeoutMillis: 1000, // 1s timeout
-	})
+	watchdog.Configure(machine.WatchdogConfig{TimeoutMillis: 1000})
 
-	flightState := CALIBRATION
-	lastFlightState = CALIBRATION
+	flightState := ESC_CALIBRATION
+	lastFlightState = flightState
 
-	// Start the goroutine to read receiver packets asynchronously.
-	go readReceiver(packetChan)
-
-	// ticker to run the control loop at a fixed frequency matching Kalman filter.
-	ticker := time.NewTicker(time.Duration(dt * float64(time.Second)))
+	go readReceiver(hw.UART, packetChan)
+	ticker := time.NewTicker(time.Duration(dt * float32(time.Second)))
 	defer ticker.Stop()
-
 	watchdog.Start()
 
-	// Main application loop using select.
-	// --- Main Loop ---
 	for {
+		// Draining all pending receiver packets non-blockingly to update channel inputs
+	drainLoop:
+		for {
+			select {
+			case packet := <-packetChan:
+				LastPacketTime = time.Now()
+				Channels = processReceiverPacket(packet)
+			default:
+				break drainLoop
+			}
+		}
 
-		select {
-		case packet := <-packetChan:
-			LastPacketTime = time.Now()
-			// A complete packet has been received.
-			Channels = processReceiverPacket(packet)
+		<-ticker.C
 
-		default:
-			// Control loop at fixed intervals
-			<-ticker.C
+		if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState != FAILSAFE {
+			flightState = FAILSAFE
+		}
 
-			// Always check for failsafe condition before the state machine logic
-			// This provides a quick response to signal loss
-			if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS && flightState != FAILSAFE {
-				flightState = FAILSAFE
+		readIMUData()
+		processIMUData()
+
+		switch flightState {
+		case ESC_CALIBRATION:
+			// Pass throttle directly to ESC for calibration
+			// ESC stays in 'high' mode until user drops stick
+			currentThrottle := uint32(Channels[ThrottleChannel])
+			setESC(currentThrottle)
+
+			if currentThrottle < (MIN_PULSE_WIDTH_US + 50) {
+				flightState = IMU_CALIBRATION
 			}
 
-			// Read and process IMU data every loop to have the freshest data available.
-			readLSMData()
-			processLSMData()
+		case IMU_CALIBRATION:
+			hw.LED.SetState(CALIBRATE)
+			hw.LED.Update()
+			setAllServos(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+			setESC(MIN_PULSE_WIDTH_US)
 
-			// The state machine from previous versions is now the default case
-			switch flightState {
-			case CALIBRATION:
-				hw.LED.SetState(CALIBRATE)
-				hw.LED.Update()
-				// Keep outputs at neutral and ESC at zero
-				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
-				setESC(MIN_PULSE_WIDTH_US)
+			time.Sleep(time.Second)
+			calibrateIMU()
+			flightState = FLIGHT_MODE
 
-				// Calibrate gyro to find bias
-				println("Initial calibration")
-				println("Calibrating Gyro... Keep gyro still!")
-				time.Sleep(time.Second)
-				calibrate()
+		case FLIGHT_MODE:
+			armed = Channels[ArmChannel] > HIGH_RX_VALUE
 
-				lastFlightState = flightState
-				flightState = FLIGHT_MODE
-				hw.LED.SetState(LEDOFF)
-				hw.LED.Update()
+			// Map RC inputs to normalized [-1.0, 1.0] range
+			pitchStick := mapRange(float32(Channels[ElevatorChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -1.0, 1.0)
+			rollStick := mapRange(float32(Channels[AileronChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -1.0, 1.0)
+			yawStick := mapRange(float32(Channels[YawChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -1.0, 1.0)
 
-			case FLIGHT_MODE:
-				// Switch to armed mode if CH5 is high
-				// Check for arm/disarm first every loop
-				if Channels[ArmChannel] <= HIGH_RX_VALUE {
-					// println("Disarmed.")
-					hw.LED.SetState(DISARMED)
-					hw.LED.Update()
-					armed = false
-				} else {
-					// println("Armed!")
-					hw.LED.SetState(ARMED)
-					hw.LED.Update()
-					armed = true
-				}
+			var pitchMix, rollMix, yawMix float32
 
-				// Handle failsafe and manual mode checks within the flight loop
-				if time.Since(LastPacketTime).Milliseconds() > FAILSAFE_TIMEOUT_MS {
-					flightState = FAILSAFE
-					break
-				}
+			if Channels[ManualModeChannel] > HIGH_RX_VALUE {
+				// Manual / Direct Pass-through Mode: feed stick directly into mixer [-1.0, 1.0]
+				pitchMix = pitchStick
+				rollMix = rollStick
+				yawMix = yawStick
 
-				// Handle manual mode
-				if Channels[ManualModeChannel] > HIGH_RX_VALUE {
-					// Manual mode
-					leftPulse := uint32(Channels[AileronChannel])
-					rightPulse := uint32(Channels[ElevatorChannel])
-					setServo(leftPulse, rightPulse)
-					setESC(uint32(Channels[ThrottleChannel]))
-					pitchPID.Reset()
-					rollPID.Reset()
-					break
-				}
-				// In stabilized mode, use IMU, Kalman filter and PID controllers to stabilize the aircraft.
-
-				// Use the Kalman filter to fuse sensor data and get a stable attitude estimate.
+				pitchPID.Reset()
+				rollPID.Reset()
+				yawPID.Reset()
+			} else {
+				// Stabilized / Angle Mode:
+				//   1. Predict state with gyro (pitch from GyroY, roll from GyroX)
+				//   2. Update state with accel
+				//   3. Compute angle errors (desired_angle - estimated_angle)
 				kf.Predict(imuData.GyroX, imuData.GyroY)
 				kf.Update(imuData.Pitch, imuData.Roll)
 
-				// Get desired roll and pitch rates from the RC receiver.
-				desiredPitchRate = mapRange(float64(Channels[ElevatorChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_PITCH_RATE, MAX_PITCH_RATE)
-				desiredRollRate = mapRange(float64(Channels[AileronChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -MAX_ROLL_RATE, MAX_ROLL_RATE)
+				// Desired angles mapped from stick inputs [-MAX_ANGLE, +MAX_ANGLE]
+				desiredPitch := pitchStick * MAX_PITCH_ANGLE
+				desiredRoll := rollStick * MAX_ROLL_ANGLE
 
-				// Apply deadband to avoid small unwanted movements
-				if math.Abs(desiredPitchRate) < DEADBAND*math.Pi/180 {
-					desiredPitchRate = 0
-				}
-				if math.Abs(desiredRollRate) < DEADBAND*math.Pi/180 {
-					desiredRollRate = 0
-				}
+				// Read Kalman angle estimates [pitch=0, roll=1]
+				estPitch := kf.X.At(0, 0)
+				estRoll := kf.X.At(1, 0)
 
-				// Calculate the error for PID controllers.
-				pitchError := desiredPitchRate - imuData.GyroY
-				rollError := desiredRollRate - imuData.GyroX
+				// Angle errors normalized by max angles so full error = 1.0 (fast FMUL with reciprocals)
+				pitchError := (desiredPitch - estPitch) * invMaxPitchAngle
+				rollError := (desiredRoll - estRoll) * invMaxRollAngle
+				// Yaw remains rate-based (desired rate - gyro rate) normalized by MAX_YAW_RATE
+				yawError := (yawStick*MAX_YAW_RATE - imuData.GyroZ) * invMaxYawRate
 
-				// Update PID controllers and get the control outputs.
-				pitchOutput := pitchPID.Update(pitchError, dt) * PID_WEIGHT
-				rollOutput := rollPID.Update(rollError, dt) * PID_WEIGHT
+				pitchMix = constrain(pitchPID.Update(pitchError, dt)*PID_WEIGHT, -1.0, 1.0)
+				rollMix = constrain(rollPID.Update(rollError, dt)*PID_WEIGHT, -1.0, 1.0)
+				yawMix = constrain(yawPID.Update(yawError, dt)*PID_WEIGHT, -1.0, 1.0)
+			}
 
-				// Combine PID outputs with a mix of raw RC input.
-				leftElevon := pitchOutput + rollOutput
-				rightElevon := pitchOutput - rollOutput
+			// 1. Process Airframe Mixer (outputs in [-1.0, 1.0] range)
+			s1, s2, s4, s5, s6 := ApplyMixer(pitchMix, rollMix, yawMix)
 
-				// Convert control outputs to PWM pulse widths.
-				leftElevon = mapRange(float64(leftElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
-				rightElevon = mapRange(float64(rightElevon), -MAX_ROLL_RATE, MAX_ROLL_RATE, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			// 2. Map Output Scale to Pulse Widths [-1.0, 1.0] -> [1000us, 2000us]
+			s1 = mapRange(s1, -1.0, 1.0, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			s2 = mapRange(s2, -1.0, 1.0, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			s4 = mapRange(s4, -1.0, 1.0, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			s5 = mapRange(s5, -1.0, 1.0, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
+			s6 = mapRange(s6, -1.0, 1.0, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US)
 
-				// Constrain pulse widths to a valid range.
-				leftPulse := uint32(constrain(leftElevon, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US))
-				rightPulse := uint32(constrain(rightElevon, MIN_PULSE_WIDTH_US, MAX_PULSE_WIDTH_US))
+			// 3. Apply Reversals
+			s1 = applyReversal(s1, SERVO1_REVERSE, float32(SERVO1_MIN), float32(SERVO1_MAX))
+			s2 = applyReversal(s2, SERVO2_REVERSE, float32(SERVO2_MIN), float32(SERVO2_MAX))
+			s4 = applyReversal(s4, SERVO4_REVERSE, float32(SERVO4_MIN), float32(SERVO4_MAX))
+			s5 = applyReversal(s5, SERVO5_REVERSE, float32(SERVO5_MIN), float32(SERVO5_MAX))
+			s6 = applyReversal(s6, SERVO6_REVERSE, float32(SERVO6_MIN), float32(SERVO6_MAX))
 
-				// Set the PWM signals for the servos.
-				setServo(leftPulse, rightPulse)
+			// 4. Add Trims and Constrain
+			pulse1 := uint32(constrain(s1+float32(SERVO1_SUBTRIM), float32(SERVO1_MIN), float32(SERVO1_MAX)))
+			pulse2 := uint32(constrain(s2+float32(SERVO2_SUBTRIM), float32(SERVO2_MIN), float32(SERVO2_MAX)))
+			pulse4 := uint32(constrain(s4+float32(SERVO4_SUBTRIM), float32(SERVO4_MIN), float32(SERVO4_MAX)))
+			pulse5 := uint32(constrain(s5+float32(SERVO5_SUBTRIM), float32(SERVO5_MIN), float32(SERVO5_MAX)))
+			pulse6 := uint32(constrain(s6+float32(SERVO6_SUBTRIM), float32(SERVO6_MIN), float32(SERVO6_MAX)))
 
-				// Arming engages throttle control Disarming disengages throttle control
-				// Stabilization takes place regardless
-				// In armed mode, set the ESC from ThrottleChannel
-				if armed {
-					// Handle ESC signal from ThrottleChannel
-					escPulse := uint32(Channels[ThrottleChannel])
-					setESC(escPulse)
+			setAllServos(pulse1, pulse2, pulse4, pulse5, pulse6)
+
+			if armed {
+				if DSHOT {
+					dshotThrottle := MapThrottle(Channels[ThrottleChannel])
+					hw.DShot.SendThrottle(dshotThrottle, false)
 				} else {
-					// This is disarmed mode, set ESC to minimum
-					setESC(MIN_PULSE_WIDTH_US)
+					setESC(uint32(Channels[ThrottleChannel]))
 				}
-
-			case FAILSAFE:
-				setServo(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
-				setESC(MIN_PULSE_WIDTH_US)
-				hw.LED.SetState(FAILSAFED)
-				hw.LED.Update()
-				if time.Since(LastPacketTime).Milliseconds() <= FAILSAFE_TIMEOUT_MS {
-					lastFlightState = flightState
-					flightState = FLIGHT_MODE
+			} else {
+				if DSHOT {
+					hw.DShot.SendThrottle(0, false) // Send zero throttle command to disarm ESC safely
+				} else {
+					setESC(MIN_PULSE_WIDTH_US)
 				}
 			}
 
-			// Keep the watchdog happy
-			watchdog.Update()
+		case FAILSAFE:
+			setAllServos(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+			setESC(MIN_PULSE_WIDTH_US)
+			if time.Since(LastPacketTime).Milliseconds() <= FAILSAFE_TIMEOUT_MS {
+				flightState = FLIGHT_MODE
+			}
 		}
+
+		watchdog.Update()
 	}
 }

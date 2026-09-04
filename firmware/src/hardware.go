@@ -10,199 +10,138 @@ import (
 
 // FC_Hardware holds all hardware interfaces and their state.
 type FC_Hardware struct {
-	I2C      I2C
-	UART     UART
-	ServoPWM PWM
-	ESCPWM   PWM
-	IMU      IMUDevice
-	LED      LEDUpdater
+	I2C   I2C
+	UART  UART
+	SPI   SPI   // Underlying SPI bus for DShot
+	DShot DShot // High-level DShot driver
+	IMU   IMUDevice
+	LED   LEDUpdater
+
+	// Dedicated PWM Instances for Seeed XIAO nRF52840
+	PWM0 PWM // Instance 0: ESC (Freq 1)
+	PWM1 PWM // Instance 1: Servos 1,2,4,5 (Freq 2)
+	PWM2 PWM // Instance 2: Servo 6 (Freq 2)
 
 	// PWM channel IDs
-	pwmCh1 uint8
-	pwmCh2 uint8
-	pwmCh3 uint8
+	pwmCh1, pwmCh2, pwmCh3, pwmCh4, pwmCh5, pwmCh6 uint8
 
 	// Tracked periods for PWM pulse width calculations
-	ServoPeriod uint64
-	ESCPeriod   uint64
+	PeriodPWM0 uint64
+	PeriodPWM1 uint64
+	PeriodPWM2 uint64
 
 	// Hardware pin mappings
-	PWM_CH1_PIN machine.Pin // Aileron Servo
-	PWM_CH2_PIN machine.Pin // Elevator Servo
-	PWM_CH3_PIN machine.Pin // ESC (Electronic Speed Controller)
+	PWM_CH1_PIN machine.Pin // Servo 1 (Aileron)
+	PWM_CH2_PIN machine.Pin // Servo 2 (Elevator)
+	PWM_CH3_PIN machine.Pin // ESC (Throttle)
+	PWM_CH4_PIN machine.Pin // Servo 4 (Rudder/V-tail)
+	PWM_CH5_PIN machine.Pin // Servo 5 (Aileron 2)
+	PWM_CH6_PIN machine.Pin // Servo 6 (Future)
 }
 
-// InitHardware initializes all hardware components with dependency injection.
-// Returns nil if successful or an error if any component fails to initialize.
 func InitHardware(hw *FC_Hardware) error {
 	if hw == nil {
 		return fmt.Errorf("hardware cannot be nil")
 	}
-	// Create the Adapters for the physical pins
-	// These are the only lines where the physical hardware is mentioned.
-	redAdapter := NewMachinePin(machine.LED_RED)
-	greenAdapter := NewMachinePin(machine.LED_GREEN)
-	blueAdapter := NewMachinePin(machine.LED_BLUE)
 
-	// Inject the adapters into the Logic Controller
-	// This satisfies the LEDUpdater interface requirement in FC_Hardware
-	hw.LED = NewLEDController(redAdapter, greenAdapter, blueAdapter)
-	// Initialize UART for receiver communication
+	// Initialize the LED controller first for status indication during setup
+	hw.LED = NewLEDController(
+		NewMachinePin(machine.LED_RED),
+		NewMachinePin(machine.LED_GREEN),
+		NewMachinePin(machine.LED_BLUE),
+	)
+
+	if DSHOT {
+		// Initialize DShot via SPI
+		// On XIAO nRF52840, SPI0 MOSI is typically D10 (PWM_CH3_PIN)
+		hw.SPI = NewMachineSPI(machine.SPI0)
+		hw.DShot = NewDShotDriver(hw.SPI)
+		if err := hw.DShot.Configure(); err != nil {
+			return fmt.Errorf("DShot/SPI configuration failed: %w", err)
+		}
+		hw.DShot.SendThrottle(0, false) // Ensure ESC starts in a safe state
+	}
+
+	// Initialize PWM instances before I2C and IMU to ensure ESC is set to a safe state early in the process.
+	// Allowing the ESC to initialize properly if it requires a valid signal at power-up and preventing unintended motor spin during setup.
+	if err := initPWMs(hw); err != nil {
+		return err
+	}
+
 	if err := initUART(hw); err != nil {
-		hw.LED.SetState(LEDOFF)
-		hw.LED.Update()
 		return err
 	}
-
-	// Initialize servo PWM (pwm0)
-	if err := initServoPWM(hw); err != nil {
-		hw.LED.SetState(PWMERROR)
-		hw.LED.Update()
-		return err
-	}
-
-	// Initialize ESC PWM (pwm1)
-	if err := initESCPWM(hw); err != nil {
-		hw.LED.SetState(ESCERROR)
-		hw.LED.Update()
-		return err
-	}
-
-	// Initialize I2C for IMU
 	if err := initI2C(hw); err != nil {
-		hw.LED.SetState(IMUCONFIG)
-		hw.LED.Update()
 		return err
 	}
-
-	// Initialize IMU sensor
 	if err := initIMU(hw); err != nil {
-		hw.LED.SetState(IMUERROR)
-		hw.LED.Update()
 		return err
 	}
 
-	// All systems initialized successfully
 	hw.LED.SetState(LEDOFF)
 	hw.LED.Update()
 	println("All hardware initialized successfully.")
-
 	return nil
 }
 
-// initUART configures the UART receiver interface.
 func initUART(hw *FC_Hardware) error {
+	cfg := machine.UARTConfig{BaudRate: BAUD_RATE, TX: machine.UART_TX_PIN, RX: machine.UART_RX_PIN}
+	return hw.UART.Configure(cfg)
+}
+
+// initPWMs sets up the 3 instances for multi-frequency operation.
+func initPWMs(hw *FC_Hardware) error {
 	hw.LED.SetState(PWMCONFIG)
 	hw.LED.Update()
 
-	cfg := machine.UARTConfig{
-		BaudRate: BAUD_RATE,
-		TX:       machine.UART_TX_PIN,
-		RX:       machine.UART_RX_PIN,
-	}
-	if err := hw.UART.Configure(cfg); err != nil {
-		return fmt.Errorf("UART configure failed: %w", err)
-	}
-	println("UART configured for receiver.")
-	return nil
-}
+	var err error
 
-// initServoPWM configures PWM0 for servo control with retry logic.
-func initServoPWM(hw *FC_Hardware) error {
-	hw.LED.SetState(PWMCONFIG)
-	hw.LED.Update()
+	// --- Instance 0: ESC (400Hz or 50Hz) ---
+	escCfg := machine.PWMConfig{Period: machine.GHz * 1 / ESC_PWM_FREQUENCY}
+	if err := hw.PWM0.Configure(escCfg); err != nil {
+		return fmt.Errorf("PWM0 config failed: %w", err)
+	}
+	hw.PeriodPWM0 = escCfg.Period
 
-	servoPWMConfig := machine.PWMConfig{
-		Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY,
+	if hw.pwmCh3, err = hw.PWM0.Channel(hw.PWM_CH3_PIN); err != nil {
+		return err
 	}
 
-	// Retry loop for PWM configuration
-	for retries := 0; retries < 5; retries++ {
-		if err := hw.ServoPWM.Configure(servoPWMConfig); err != nil {
-			if retries < 4 {
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-			return fmt.Errorf("servo PWM configure failed after retries: %w", err)
-		}
-		break
+	// Set ESC to minimum throttle before initializing I2C and IMU to prevent unintended motor spin during setup
+	// and allow the ESC to initialize properly if it requires a valid signal at power-up.
+	hw.PWM0.Set(hw.pwmCh3, 0) // Start with 0% duty cycle for ESC
+
+	// --- Instance 1: Servos 1, 2, 4, 5 (50Hz) ---
+	servoCfg := machine.PWMConfig{Period: machine.GHz * 1 / SERVO_PWM_FREQUENCY}
+	if err := hw.PWM1.Configure(servoCfg); err != nil {
+		return fmt.Errorf("PWM1 config failed: %w", err)
+	}
+	hw.PeriodPWM1 = servoCfg.Period
+
+	if hw.pwmCh1, err = hw.PWM1.Channel(hw.PWM_CH1_PIN); err != nil {
+		return err
+	}
+	if hw.pwmCh2, err = hw.PWM1.Channel(hw.PWM_CH2_PIN); err != nil {
+		return err
+	}
+	if hw.pwmCh4, err = hw.PWM1.Channel(hw.PWM_CH4_PIN); err != nil {
+		return err
+	}
+	if hw.pwmCh5, err = hw.PWM1.Channel(hw.PWM_CH5_PIN); err != nil {
+		return err
 	}
 
-	hw.LED.SetState(SERVOINIT)
-	hw.LED.Update()
+	// --- Instance 2: Servo 6 (50Hz) ---
+	if err := hw.PWM2.Configure(servoCfg); err != nil {
+		return fmt.Errorf("PWM2 config failed: %w", err)
+	}
+	hw.PeriodPWM2 = servoCfg.Period
 
-	hw.ServoPeriod = servoPWMConfig.Period
-
-	// Channel 1 configuration
-	for retries := 0; retries < 5; retries++ {
-		ch, err := hw.ServoPWM.Channel(hw.PWM_CH1_PIN)
-		if err != nil {
-			if retries < 4 {
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-			return fmt.Errorf("servo PWM channel 1 failed after retries: %w", err)
-		}
-		hw.pwmCh1 = ch
-		break
+	if hw.pwmCh6, err = hw.PWM2.Channel(hw.PWM_CH6_PIN); err != nil {
+		return err
 	}
 
-	// Channel 2 configuration
-	for retries := 0; retries < 5; retries++ {
-		ch, err := hw.ServoPWM.Channel(hw.PWM_CH2_PIN)
-		if err != nil {
-			if retries < 4 {
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-			return fmt.Errorf("servo PWM channel 2 failed after retries: %w", err)
-		}
-		hw.pwmCh2 = ch
-		break
-	}
-
-	println("PWM configured for servos.")
-	return nil
-}
-
-// initESCPWM configures PWM1 for ESC control with retry logic.
-func initESCPWM(hw *FC_Hardware) error {
-	hw.LED.SetState(ESCINIT)
-	hw.LED.Update()
-
-	escPWMConfig := machine.PWMConfig{
-		Period: machine.GHz * 1 / ESC_PWM_FREQUENCY,
-	}
-
-	// Retry loop for PWM configuration
-	for retries := 0; retries < 5; retries++ {
-		if err := hw.ESCPWM.Configure(escPWMConfig); err != nil {
-			if retries < 4 {
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-			return fmt.Errorf("ESC PWM configure failed after retries: %w", err)
-		}
-		break
-	}
-
-	hw.ESCPeriod = escPWMConfig.Period
-
-	// Channel 3 configuration
-	for retries := 0; retries < 5; retries++ {
-		ch, err := hw.ESCPWM.Channel(hw.PWM_CH3_PIN)
-		if err != nil {
-			if retries < 4 {
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-			return fmt.Errorf("ESC PWM channel failed after retries: %w", err)
-		}
-		hw.pwmCh3 = ch
-		break
-	}
-
-	println("PWM configured for ESC.")
+	println("Multi-frequency PWM instances configured.")
 	return nil
 }
 

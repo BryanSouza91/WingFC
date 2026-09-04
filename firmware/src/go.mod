@@ -3,7 +3,7 @@ module github.com/BryanSouza91/WingFC
 go 1.24.6
 
 require (
-	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d
+	github.com/orsinium-labs/tinymath v1.1.0
 	tinygo.org/x/drivers v0.33.0
 )
 
