@@ -57,6 +57,8 @@ func InitHardware(hw *FC_Hardware) error {
 		hw.SPI = NewMachineSPI(machine.SPI0)
 		hw.DShot = NewDShotDriver(hw.SPI)
 		if err := hw.DShot.Configure(); err != nil {
+			hw.LED.SetState(ESCERROR)
+			hw.LED.Update()
 			return fmt.Errorf("DShot/SPI configuration failed: %w", err)
 		}
 		hw.DShot.SendThrottle(0, false) // Ensure ESC starts in a safe state
@@ -65,16 +67,24 @@ func InitHardware(hw *FC_Hardware) error {
 	// Initialize PWM instances before I2C and IMU to ensure ESC is set to a safe state early in the process.
 	// Allowing the ESC to initialize properly if it requires a valid signal at power-up and preventing unintended motor spin during setup.
 	if err := initPWMs(hw); err != nil {
+		hw.LED.SetState(PWMERROR)
+		hw.LED.Update()
 		return err
 	}
 
 	if err := initUART(hw); err != nil {
+		hw.LED.SetState(PWMERROR)
+		hw.LED.Update()
 		return err
 	}
 	if err := initI2C(hw); err != nil {
+		hw.LED.SetState(IMUERROR)
+		hw.LED.Update()
 		return err
 	}
 	if err := initIMU(hw); err != nil {
+		hw.LED.SetState(IMUERROR)
+		hw.LED.Update()
 		return err
 	}
 
@@ -162,6 +172,11 @@ func initI2C(hw *FC_Hardware) error {
 
 // initIMU initializes the LSM6DS3TR IMU with retry logic and connectivity check.
 func initIMU(hw *FC_Hardware) error {
+	// Power on the onboard LSM6DS3TR IMU sensor on Seeed XIAO BLE Sense
+	machine.LSM_PWR.Configure(machine.PinConfig{Mode: machine.PinOutput})
+	machine.LSM_PWR.High()
+	time.Sleep(50 * time.Millisecond)
+
 	hw.LED.SetState(IMUINIT)
 	hw.LED.Update()
 
@@ -178,6 +193,8 @@ func initIMU(hw *FC_Hardware) error {
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
+			hw.LED.SetState(IMUERROR)
+			hw.LED.Update()
 			return fmt.Errorf("IMU configure failed after retries: %w", err)
 		}
 		break
@@ -192,6 +209,8 @@ func initIMU(hw *FC_Hardware) error {
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
+		hw.LED.SetState(IMUERROR)
+		hw.LED.Update()
 		return fmt.Errorf("IMU not connected after retries")
 	}
 

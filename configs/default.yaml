@@ -1,0 +1,124 @@
+# WingFC Flight Controller Configuration
+# Run 'go generate ./...' or 'go run ./tools/configgen' to compile this into firmware/src/config.go
+
+version: "1.0"
+
+# Protocol settings
+protocol:
+  num_channels: 16
+
+# Board orientation
+# 0: Default, 1: CW90, 2: CW180, 3: CW270, 4: flip, 5: flipCW90, 6: flipCW180, 7: flipCW270
+board:
+  orientation: 0
+
+# Airframe type
+# Options:
+#   AIRFRAME_ELEVON
+#   AIRFRAME_SINGLE_AILERON_T_TAIL
+#   AIRFRAME_DUAL_AILERON_T_TAIL
+#   AIRFRAME_SINGLE_AILERON_V_TAIL
+#   AIRFRAME_DUAL_AILERON_V_TAIL
+airframe:
+  type: AIRFRAME_ELEVON
+
+# Radio receiver channel assignments and signal parameters
+receiver:
+  channels:
+    aileron: 0      # CH1 (Roll)
+    elevator: 1     # CH2 (Pitch)
+    throttle: 2     # CH3 (Throttle)
+    yaw: 3          # CH4 (Yaw)
+    arm: 4          # CH5
+    manual_mode: 7  # CH8
+    tuning_a: 5     # CH6 for tuning parameter A
+    tuning_b: 6     # CH7 for tuning parameter B
+    tuning_c: 8     # CH9 for tuning parameter C
+    tuning_d: 9     # CH10 for tuning parameter D
+  deadband: 10
+  high_rx_value: 1800
+  min_rx_value: 988
+  max_rx_value: 2012
+  neutral_rx_value: 1500
+
+# Motor ESC and PWM Configuration
+pwm:
+  dshot: false
+  dshot_mode: 600           # 150, 300, or 600
+  servo_frequency_hz: 100   # 50Hz for analog servos, 100-333Hz for digital
+  esc_frequency_hz: 400     # 400Hz for high-speed ESC
+
+# Servo limits, trims, and reversals
+servos:
+  servo1: # Primary Aileron / Left Elevon
+    min: 1100
+    max: 1900
+    subtrim: 0
+    reverse: false
+  servo2: # Primary Elevator / Right Elevon
+    min: 1100
+    max: 1900
+    subtrim: 0
+    reverse: false
+  servo4: # Rudder / V-Tail
+    min: 1100
+    max: 1900
+    subtrim: 0
+    reverse: false
+  servo5: # Secondary Aileron
+    min: 1100
+    max: 1900
+    subtrim: 0
+    reverse: false
+  servo6: # Aux
+    min: 1100
+    max: 1900
+    subtrim: 0
+    reverse: false
+
+# Flight control dynamics, limits, and PID gains
+flight_control:
+  max_rates_deg:
+    pitch: 200
+    roll: 600
+    yaw: 100
+  max_angles_deg:
+    pitch: 45.0
+    roll: 60.0
+  pid_weight: 0.5
+  filters:
+    # 0 = no filtering, 1 = mild (α≈0.25, >>2), 2 = stronger (α≈0.125, >>3)
+    accel_level: 2
+    gyro_level: 0
+  pid:
+    pitch:
+      p: 1.00
+      i: 0.050
+      d: 0.00
+    roll:
+      p: 1.00
+      i: 0.050
+      d: 0.00
+    yaw:
+      p: 0.50
+      i: 0.020
+      d: 0.00
+
+# In-flight tuning parameters (0 = disabled, 1: Pitch P, 2: Roll P, 3: Pitch I, 4: Roll I, 5: Pitch D, 6: Roll D)
+tuning:
+  param_a:
+    parameter: 0
+    min: 0.1000
+    max: 2.0000
+  param_b:
+    parameter: 0
+    min: 0.0100
+    max: 0.5000
+  param_c:
+    parameter: 0
+    min: 0.0010
+    max: 0.1000
+  param_d:
+    parameter: 0
+    min: 0.0010
+    max: 0.1000

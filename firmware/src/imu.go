@@ -4,6 +4,11 @@ import (
 	math "github.com/orsinium-labs/tinymath"
 )
 
+const (
+	microGToMS2    float32 = 9.80665 / 1e6
+	microDPSToRadS float32 = 3.141592653589793 / (180 * 1e6)
+)
+
 // IMU Struct
 type IMU struct {
 	rawAccelX int32
@@ -31,6 +36,8 @@ type IMU struct {
 	Roll  float32
 	Yaw   float32
 }
+
+var imuData IMU
 
 // pitchAccel() calculates the pitch angle in radians from accelerometer data.
 func (i *IMU) pitchAccel() float32 {

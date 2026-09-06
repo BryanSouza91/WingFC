@@ -4,59 +4,62 @@ import (
 	"machine"
 	"time"
 
-	math "github.com/orsinium-labs/tinymath"
 	"tinygo.org/x/drivers/lsm6ds3tr"
 )
 
-const Version = "0.4.0"
-
+// Constants and global variables
 var (
-	watchdog = machine.Watchdog
-	hw       *FC_Hardware
+	// Version tracking
+	Version = "0.4.0"
 
-	// 3-Axis PID
+	// Loop timing
+	dt float32 = 0.005 // 200Hz loop rate (5ms loop time)
+
+	// Filter and Controller instances
+	kf       *KalmanFilter
 	pitchPID *PIDController
 	rollPID  *PIDController
 	yawPID   *PIDController
 
-	dt      float32 = 0.005
-	kf      *KalmanFilter
-	imuData IMU
+	// Hardware abstraction handles
+	hw *FC_Hardware
 
-	desiredPitchRate, desiredRollRate, desiredYawRate float32
-
-	Channels        [NumChannels]uint16
-	lastFlightState flightState
-	LastPacketTime  time.Time
-	calibStartTime  time.Time
+	// Flight control state variables
 	armed           bool
-)
+	lastFlightState flightState
 
-// Define constants for sensor value conversions and PWM.
-const (
-	// Convert sensor values to radians for calculations
-	microGToMS2    float32 = 9.80665 / 1e6
-	microDPSToRadS float32 = math.Pi / (180 * 1e6)
+	// Rate and angle limits (converted from config.go constants)
+	MAX_PITCH_RATE float32 = float32(MAX_PITCH_RATE_DEG)
+	MAX_ROLL_RATE  float32 = float32(MAX_ROLL_RATE_DEG)
+	MAX_YAW_RATE   float32 = float32(MAX_YAW_RATE_DEG)
 
-	// PWM pulse width constants
-	MIN_PULSE_WIDTH_US = 1000
-	MAX_PULSE_WIDTH_US = 2000
+	MAX_PITCH_ANGLE float32 = MAX_PITCH_ANGLE_DEG
+	MAX_ROLL_ANGLE  float32 = MAX_ROLL_ANGLE_DEG
 
-	// Calculated rate constants for manual/rate mode
-	MAX_ROLL_RATE  float32 = MAX_ROLL_RATE_DEG * math.Pi / 180
-	MAX_PITCH_RATE float32 = MAX_PITCH_RATE_DEG * math.Pi / 180
-	MAX_YAW_RATE   float32 = MAX_YAW_RATE_DEG * math.Pi / 180
-
-	// Calculated angle constants for stabilized mode (radians)
-	MAX_PITCH_ANGLE float32 = MAX_PITCH_ANGLE_DEG * math.Pi / 180
-	MAX_ROLL_ANGLE  float32 = MAX_ROLL_ANGLE_DEG * math.Pi / 180
-
-	// Reciprocals for fast Cortex-M4F float multiplication
+	// Reciprocals for fast single-cycle FMUL normalization in flight loop (dt = 5ms / 200Hz)
 	invMaxPitchAngle float32 = 1.0 / MAX_PITCH_ANGLE
 	invMaxRollAngle  float32 = 1.0 / MAX_ROLL_ANGLE
 	invMaxYawRate    float32 = 1.0 / MAX_YAW_RATE
 
-	// Fail-safe constants
+	// Radio Control Inputs
+	Channels       [NumChannels]uint16
+	LastPacketTime time.Time
+
+	// Watchdog timer instance
+	watchdog = machine.Watchdog
+)
+
+const (
+	// Flight modes
+	MANUAL_MODE = 1
+	AUTO_MODE   = 2
+
+	// Microsecond constants for RC PWM pulses
+	MIN_PULSE_WIDTH_US     = 1000
+	MAX_PULSE_WIDTH_US     = 2000
+	NEUTRAL_PULSE_WIDTH_US = 1500
+
+	// Failsafe configuration
 	FAILSAFE_TIMEOUT_MS = 500
 
 	// Flight states
@@ -91,9 +94,15 @@ func main() {
 	}
 
 	if err := InitHardware(hw); err != nil {
+		println("CRITICAL FAILURE: InitHardware failed:", err.Error())
 		for {
-			time.Sleep(time.Second)
-		} // Critical failure loop
+			hw.LED.SetState(IMUERROR)
+			hw.LED.Update()
+			time.Sleep(200 * time.Millisecond)
+			hw.LED.SetState(LEDOFF)
+			hw.LED.Update()
+			time.Sleep(200 * time.Millisecond)
+		} // Critical failure loop: rapid Red/Purple flashing
 	}
 
 	kf = NewKalmanFilter(dt)
@@ -156,6 +165,12 @@ func main() {
 
 		case FLIGHT_MODE:
 			armed = Channels[ArmChannel] > HIGH_RX_VALUE
+			if armed {
+				hw.LED.SetState(ARMED)
+			} else {
+				hw.LED.SetState(DISARMED)
+			}
+			hw.LED.Update()
 
 			// Map RC inputs to normalized [-1.0, 1.0] range
 			pitchStick := mapRange(float32(Channels[ElevatorChannel]), MIN_RX_VALUE, MAX_RX_VALUE, -1.0, 1.0)
@@ -242,6 +257,8 @@ func main() {
 			}
 
 		case FAILSAFE:
+			hw.LED.SetState(FAILSAFED)
+			hw.LED.Update()
 			setAllServos(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
 			setESC(MIN_PULSE_WIDTH_US)
 			if time.Since(LastPacketTime).Milliseconds() <= FAILSAFE_TIMEOUT_MS {

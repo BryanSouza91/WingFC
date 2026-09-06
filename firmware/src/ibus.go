@@ -59,6 +59,10 @@ func readReceiver(uart UART, packetChan chan<- [IBUS_PACKET_SIZE]byte) {
 				payloadBuffer[1] = data
 				payloadIndex = 2
 				ibusState = READING_PAYLOAD
+			} else if data == IBUS_HEADER1 {
+				payloadBuffer[0] = data
+				payloadIndex = 1
+				ibusState = WAITING_FOR_HEADER2
 			} else {
 				ibusState = WAITING_FOR_HEADER1 // Invalid header sequence, reset
 			}

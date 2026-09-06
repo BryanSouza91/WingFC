@@ -1,0 +1,65 @@
+# WingFC Profile: Flying Wing / Elevon Airframe (e.g. ZOHD Dart 250G, Alight Wing Flik)
+version: "1.0"
+
+protocol:
+  num_channels: 18
+
+board:
+  orientation: 0
+
+airframe:
+  type: AIRFRAME_ELEVON
+
+receiver:
+  channels:
+    aileron: 0
+    elevator: 1
+    throttle: 2
+    yaw: 3
+    arm: 4
+    manual_mode: 7
+    tuning_a: 5
+    tuning_b: 6
+    tuning_c: 8
+    tuning_d: 9
+  deadband: 10
+  high_rx_value: 1800
+  min_rx_value: 988
+  max_rx_value: 2012
+  neutral_rx_value: 1500
+
+pwm:
+  dshot: false
+  dshot_mode: 600
+  servo_frequency_hz: 100
+  esc_frequency_hz: 400
+
+servos:
+  servo1: { min: 1100, max: 1900, subtrim: 0, reverse: false } # Left Elevon
+  servo2: { min: 1100, max: 1900, subtrim: 0, reverse: false } # Right Elevon
+  servo4: { min: 1100, max: 1900, subtrim: 0, reverse: false } # Rudder (optional)
+  servo5: { min: 1100, max: 1900, subtrim: 0, reverse: false }
+  servo6: { min: 1100, max: 1900, subtrim: 0, reverse: false }
+
+flight_control:
+  max_rates_deg:
+    pitch: 200
+    roll: 600
+    yaw: 100
+  max_angles_deg:
+    pitch: 45.0
+    roll: 60.0
+  pid_weight: 0.5
+  filters:
+    accel_level: 2
+    gyro_level: 0
+  pid:
+    pitch: { p: 1.00, i: 0.050, d: 0.00 }
+    roll:  { p: 1.00, i: 0.050, d: 0.00 }
+    yaw:   { p: 0.50, i: 0.020, d: 0.00 }
+
+tuning:
+  param_a: { parameter: 0, min: 0.1000, max: 2.0000 }
+  param_b: { parameter: 0, min: 0.0100, max: 0.5000 }
+  param_c: { parameter: 0, min: 0.0010, max: 0.1000 }
+  param_d: { parameter: 0, min: 0.0010, max: 0.1000 }
