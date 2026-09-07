@@ -26,9 +26,9 @@ type FC_Hardware struct {
 	pwmCh1, pwmCh2, pwmCh3, pwmCh4, pwmCh5, pwmCh6 uint8
 
 	// Tracked periods for PWM pulse width calculations
-	PeriodPWM0 uint64
-	PeriodPWM1 uint64
-	PeriodPWM2 uint64
+	PeriodPWM0 uint32
+	PeriodPWM1 uint32
+	PeriodPWM2 uint32
 
 	// Hardware pin mappings
 	PWM_CH1_PIN machine.Pin // Servo 1 (Aileron)
@@ -172,11 +172,6 @@ func initI2C(hw *FC_Hardware) error {
 
 // initIMU initializes the LSM6DS3TR IMU with retry logic and connectivity check.
 func initIMU(hw *FC_Hardware) error {
-	// Power on the onboard LSM6DS3TR IMU sensor on Seeed XIAO BLE Sense
-	machine.LSM_PWR.Configure(machine.PinConfig{Mode: machine.PinOutput})
-	machine.LSM_PWR.High()
-	time.Sleep(50 * time.Millisecond)
-
 	hw.LED.SetState(IMUINIT)
 	hw.LED.Update()
 

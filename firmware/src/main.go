@@ -144,6 +144,8 @@ func main() {
 
 		switch flightState {
 		case ESC_CALIBRATION:
+			hw.LED.SetState(CALIBRATE)
+			hw.LED.Update()
 			// Pass throttle directly to ESC for calibration
 			// ESC stays in 'high' mode until user drops stick
 			currentThrottle := uint32(Channels[ThrottleChannel])
@@ -156,7 +158,13 @@ func main() {
 		case IMU_CALIBRATION:
 			hw.LED.SetState(CALIBRATE)
 			hw.LED.Update()
-			setAllServos(NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE, NEUTRAL_RX_VALUE)
+			setAllServos(
+				NEUTRAL_RX_VALUE,
+				NEUTRAL_RX_VALUE,
+				NEUTRAL_RX_VALUE,
+				NEUTRAL_RX_VALUE,
+				NEUTRAL_RX_VALUE,
+			)
 			setESC(MIN_PULSE_WIDTH_US)
 
 			time.Sleep(time.Second)

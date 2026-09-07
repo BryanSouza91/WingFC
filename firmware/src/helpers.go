@@ -218,10 +218,10 @@ func setAllServos(servo1, servo2, servo4, servo5, servo6 uint32) {
 
 	// PWM1 handles Servos 1, 2, 4, 5
 	topPWM1 := hw.PWM1.Top()
-	duty1 := uint32(uint64(servo1) * 1000 * uint64(topPWM1) / hw.PeriodPWM1)
-	duty2 := uint32(uint64(servo2) * 1000 * uint64(topPWM1) / hw.PeriodPWM1)
-	duty4 := uint32(uint64(servo4) * 1000 * uint64(topPWM1) / hw.PeriodPWM1)
-	duty5 := uint32(uint64(servo5) * 1000 * uint64(topPWM1) / hw.PeriodPWM1)
+	duty1 := servo1 * 1000 * topPWM1 / hw.PeriodPWM1
+	duty2 := servo2 * 1000 * topPWM1 / hw.PeriodPWM1
+	duty4 := servo4 * 1000 * topPWM1 / hw.PeriodPWM1
+	duty5 := servo5 * 1000 * topPWM1 / hw.PeriodPWM1
 
 	hw.PWM1.Set(hw.pwmCh1, duty1)
 	hw.PWM1.Set(hw.pwmCh2, duty2)
@@ -230,7 +230,7 @@ func setAllServos(servo1, servo2, servo4, servo5, servo6 uint32) {
 
 	// PWM2 handles Servo 6
 	topPWM2 := hw.PWM2.Top()
-	duty6 := uint32(uint64(servo6) * 1000 * uint64(topPWM2) / hw.PeriodPWM2)
+	duty6 := servo6 * 1000 * topPWM2 / hw.PeriodPWM2
 
 	hw.PWM2.Set(hw.pwmCh6, duty6)
 }
@@ -242,7 +242,7 @@ func setESC(pulseWidth uint32) {
 	}
 
 	topPWM0 := hw.PWM0.Top()
-	duty := uint32(uint64(pulseWidth) * 1000 * uint64(topPWM0) / hw.PeriodPWM0)
+	duty := pulseWidth * 1000 * topPWM0 / hw.PeriodPWM0
 	hw.PWM0.Set(hw.pwmCh3, duty)
 }
 
