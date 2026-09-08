@@ -16,6 +16,18 @@ type UART interface {
 	Write(b byte) error
 }
 
+// SPI defines the interface for SPI communication.
+type SPI interface {
+	Configure(machine.SPIConfig) error
+	Tx(w, r []byte) error
+}
+
+// DShot defines the interface for digital ESC communication.
+type DShot interface {
+	Configure() error
+	SendThrottle(throttle uint16, telemetry bool)
+}
+
 // PWM defines the interface for PWM control.
 type PWM interface {
 	Configure(machine.PWMConfig) error
@@ -40,6 +52,6 @@ type LEDUpdater interface {
 type IMUDevice interface {
 	Configure(config interface{}) error
 	Connected() bool
-	ReadAccel() (x, y, z int16, err error)
-	ReadGyro() (x, y, z int16, err error)
+	ReadAccel() (x, y, z int32, err error)
+	ReadGyro() (x, y, z int32, err error)
 }

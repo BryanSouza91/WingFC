@@ -51,22 +51,41 @@ func (m *MachineUART) Write(b byte) error {
 	return m.uart.WriteByte(b)
 }
 
+// === SPI Adapters ===
+
+// MachineSPI adapts machine.SPI to the SPI interface.
+type MachineSPI struct {
+	spi *machine.SPI
+}
+
+func NewMachineSPI(spi *machine.SPI) *MachineSPI {
+	return &MachineSPI{spi: spi}
+}
+
+func (m *MachineSPI) Configure(cfg machine.SPIConfig) error {
+	return m.spi.Configure(cfg)
+}
+
+func (m *MachineSPI) Tx(w, r []byte) error {
+	return m.spi.Tx(w, r)
+}
+
 // === PWM Adapters ===
 
-// MachinePWM0 adapts *machine.PWM to the PWM interface.
-type MachinePWM0 struct {
+// MachinePWM adapts *machine.PWM to the PWM interface.
+type MachinePWM struct {
 	pwm *machine.PWM
 }
 
-func NewMachinePWM0(pwm *machine.PWM) *MachinePWM0 {
-	return &MachinePWM0{pwm: pwm}
+func NewMachinePWM(pwm *machine.PWM) *MachinePWM {
+	return &MachinePWM{pwm: pwm}
 }
 
-func (m *MachinePWM0) Configure(cfg machine.PWMConfig) error {
+func (m *MachinePWM) Configure(cfg machine.PWMConfig) error {
 	return m.pwm.Configure(cfg)
 }
 
-func (m *MachinePWM0) Channel(pin machine.Pin) (uint8, error) {
+func (m *MachinePWM) Channel(pin machine.Pin) (uint8, error) {
 	ch, err := m.pwm.Channel(pin)
 	if err != nil {
 		return 0, err
@@ -74,40 +93,11 @@ func (m *MachinePWM0) Channel(pin machine.Pin) (uint8, error) {
 	return ch, nil
 }
 
-func (m *MachinePWM0) Set(channel uint8, value uint32) {
+func (m *MachinePWM) Set(channel uint8, value uint32) {
 	m.pwm.Set(channel, value)
 }
 
-func (m *MachinePWM0) Top() uint32 {
-	return m.pwm.Top()
-}
-
-// MachinePWM1 adapts *machine.PWM to the PWM interface.
-type MachinePWM1 struct {
-	pwm *machine.PWM
-}
-
-func NewMachinePWM1(pwm *machine.PWM) *MachinePWM1 {
-	return &MachinePWM1{pwm: pwm}
-}
-
-func (m *MachinePWM1) Configure(cfg machine.PWMConfig) error {
-	return m.pwm.Configure(cfg)
-}
-
-func (m *MachinePWM1) Channel(pin machine.Pin) (uint8, error) {
-	ch, err := m.pwm.Channel(pin)
-	if err != nil {
-		return 0, err
-	}
-	return ch, nil
-}
-
-func (m *MachinePWM1) Set(channel uint8, value uint32) {
-	m.pwm.Set(channel, value)
-}
-
-func (m *MachinePWM1) Top() uint32 {
+func (m *MachinePWM) Top() uint32 {
 	return m.pwm.Top()
 }
 
@@ -154,12 +144,12 @@ func (a *LSM6DS3TRAdapter) Connected() bool {
 	return a.dev.Connected()
 }
 
-func (a *LSM6DS3TRAdapter) ReadAccel() (x, y, z int16, err error) {
+func (a *LSM6DS3TRAdapter) ReadAccel() (x, y, z int32, err error) {
 	rawX, rawY, rawZ, errAccel := a.dev.ReadAcceleration()
-	return int16(rawX >> 8), int16(rawY >> 8), int16(rawZ >> 8), errAccel
+	return rawX, rawY, rawZ, errAccel
 }
 
-func (a *LSM6DS3TRAdapter) ReadGyro() (x, y, z int16, err error) {
+func (a *LSM6DS3TRAdapter) ReadGyro() (x, y, z int32, err error) {
 	rawX, rawY, rawZ, errGyro := a.dev.ReadRotation()
-	return int16(rawX >> 8), int16(rawY >> 8), int16(rawZ >> 8), errGyro
+	return rawX, rawY, rawZ, errGyro
 }
