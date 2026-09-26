@@ -1,6 +1,14 @@
 # WingFC
 
-### Latest Version 0.3.0
+> [!WARNING]
+> ### ⚠️ REPOSITORY ARCHIVED & SUPERSEDED
+> This original TinyGo implementation of WingFC has been archived and is preserved for historical reference.
+>
+> Active development has transitioned into two dedicated, first-class repositories within the **Ferrox-RC** ecosystem:
+> - 🦀 **Firmware:** [**ferrox-rc/wingfc-rs**](https://github.com/ferrox-rc/wingfc-rs) — High-performance, zero-latency bare-metal Rust flight controller firmware for sub-250g wings and UAVs.
+> - ⚡ **Hardware:** [**ferrox-rc/wingfc-hardware**](https://github.com/ferrox-rc/wingfc-hardware) — KiCad schematics, 4-layer PCB layouts, 3D mechanical models, and carrier board designs.
+
+### Historical Version 0.3.0 (TinyGo Prototype)
 
 WingFC is a specialized open-source embedded flight controller designed specifically for the rapidly growing sub-250g flying wing FPV (First-Person-View) market. The project's core mission is to provide a reliable, user-friendly, and highly customizable solution for hobbyists and enthusiasts building ultra-lightweight Unmanned Aerial Vehicles (UAVs).
 
